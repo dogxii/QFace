@@ -1,5 +1,14 @@
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, Cloud, ExternalLink, FileText, LogIn, LogOut, Monitor } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  Cloud,
+  ExternalLink,
+  FileText,
+  LogIn,
+  LogOut,
+  Monitor,
+} from 'lucide-react'
 import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { githubLoginUrl, saveRemoteNote } from '@/lib/community-api'
@@ -14,10 +23,21 @@ import {
 import { useMastery } from '@/lib/mastery'
 import { allQuestions, getModules } from '@/lib/questions'
 import { useSession } from '@/lib/session'
+import { type ThemePreference, useTheme } from '@/lib/theme'
 import { categories, type QuestionCategory } from '@/types/question'
 
 const repoUrl = import.meta.env.VITE_QFACE_REPO_URL || 'https://github.com/dogxii/QFace'
 const accountProgressScopeKey = 'qface:account-progress-scope:v1'
+const themeOptions: Array<{ value: ThemePreference; label: string }> = [
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+  { value: 'system', label: '系统' },
+]
+const themePreferenceLabels: Record<ThemePreference, string> = {
+  light: '浅色',
+  dark: '深色',
+  system: '跟随系统',
+}
 
 interface AccountProgressScope {
   category: QuestionCategory | ''
@@ -57,8 +77,14 @@ export function AccountMenu() {
   const rootRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { user, stats, logout, refresh } = useSession()
+  const {
+    preference: themePreference,
+    resolvedTheme,
+    setPreference: setThemePreference,
+  } = useTheme()
   const { masteryMap } = useMastery()
   const [open, setOpen] = useState(false)
+  const [themeOpen, setThemeOpen] = useState(false)
   const [localNotes, setLocalNotes] = useState(() => readLocalNotes())
   const [bookmarkCount, setBookmarkCount] = useState(() => getLocalBookmarkCount())
   const [progressScope, setProgressScope] = useState<AccountProgressScope>(() =>
@@ -82,6 +108,10 @@ export function AccountMenu() {
       window.removeEventListener('storage', updateLocalStats)
     }
   }, [])
+
+  useEffect(() => {
+    if (!open) setThemeOpen(false)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -136,6 +166,10 @@ export function AccountMenu() {
   )
   const progressTotal = progressQuestions.length
   const progressPercent = progressTotal ? Math.round((progressDone / progressTotal) * 100) : 0
+  const themeLabel =
+    themePreference === 'system'
+      ? `系统 · ${resolvedTheme === 'dark' ? '深色' : '浅色'}`
+      : themePreferenceLabels[themePreference]
 
   const updateProgressScope = (next: AccountProgressScope) => {
     setProgressScope(next)
@@ -329,11 +363,33 @@ export function AccountMenu() {
           </div>
 
           <div className="account-menu-section">
-            <button className="account-row account-row--muted" type="button" disabled>
+            <button
+              className="account-row account-theme-trigger"
+              type="button"
+              aria-expanded={themeOpen}
+              onClick={() => setThemeOpen((current) => !current)}
+            >
               <Monitor size={17} aria-hidden="true" />
               <span>外观</span>
-              <small>浅色</small>
+              <small>{themeLabel}</small>
             </button>
+            {themeOpen ? (
+              <fieldset className="account-theme-options" aria-label="外观模式">
+                {themeOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    data-active={themePreference === option.value}
+                    onClick={() => setThemePreference(option.value)}
+                  >
+                    <span>{option.label}</span>
+                    {themePreference === option.value ? (
+                      <Check size={12} aria-hidden="true" />
+                    ) : null}
+                  </button>
+                ))}
+              </fieldset>
+            ) : null}
           </div>
 
           {user ? (
