@@ -36,6 +36,24 @@ export function cleanContent(value: unknown, maxLength = 12000) {
   return content
 }
 
+export function cleanTitle(value: unknown, maxLength = 80) {
+  const title = typeof value === 'string' ? value.trim() : ''
+  if (title.length < 2) {
+    throw new Response(JSON.stringify({ error: 'Title is too short' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+  }
+  if (title.length > maxLength) {
+    throw new Response(JSON.stringify({ error: 'Title is too long' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+  }
+
+  return title
+}
+
 export function cleanOptionalContent(value: unknown, maxLength = 12000) {
   const content = typeof value === 'string' ? value.trim() : ''
   if (content.length > maxLength) {
@@ -46,6 +64,36 @@ export function cleanOptionalContent(value: unknown, maxLength = 12000) {
   }
 
   return content
+}
+
+export function cleanOptionalDate(value: unknown) {
+  const text = typeof value === 'string' ? value.trim() : ''
+  if (!text) return ''
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw new Response(JSON.stringify({ error: 'Invalid date' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+  }
+
+  const date = new Date(`${text}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    throw new Response(JSON.stringify({ error: 'Invalid date' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+  }
+
+  const normalized = date.toISOString().slice(0, 10)
+  if (normalized !== text) {
+    throw new Response(JSON.stringify({ error: 'Invalid date' }), {
+      status: 400,
+      headers: { 'content-type': 'application/json; charset=utf-8' },
+    })
+  }
+
+  return text
 }
 
 export function cleanCommentKind(value: unknown): CommentKind {

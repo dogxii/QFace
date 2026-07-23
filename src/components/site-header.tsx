@@ -10,6 +10,7 @@ export function SiteHeader() {
         </Link>
 
         <nav className="site-nav" aria-label="站点导航">
+          <Link to="/experiences">面经</Link>
           <AccountMenu />
         </nav>
       </div>

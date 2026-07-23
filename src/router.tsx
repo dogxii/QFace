@@ -1,5 +1,8 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/react-router'
+import { ExperienceQuestionPanelProvider } from '@/components/experience-question-panel'
 import { SiteHeader } from '@/components/site-header'
+import { EditExperiencePage, NewExperiencePage } from '@/pages/experience-edit-page'
+import { ExperiencesPage, type ExperiencesSearch } from '@/pages/experiences-page'
 import { HomePage, type HomeSearch } from '@/pages/home-page'
 import { NotesPage } from '@/pages/notes-page'
 import { ProfilePage } from '@/pages/profile-page'
@@ -40,12 +43,23 @@ function parseHomeSearch(search: Record<string, unknown>): HomeSearch {
   return next
 }
 
+function parseExperiencesSearch(search: Record<string, unknown>): ExperiencesSearch {
+  const next: ExperiencesSearch = {}
+  const q = parseString(search.q)
+
+  if (q) next.q = q
+  if (search.mine === '1' || search.mine === true) next.mine = true
+  if (search.sort === 'hot') next.sort = 'hot'
+
+  return next
+}
+
 const rootRoute = createRootRoute({
   component: () => (
-    <>
+    <ExperienceQuestionPanelProvider>
       <SiteHeader />
       <Outlet />
-    </>
+    </ExperienceQuestionPanelProvider>
   ),
 })
 
@@ -74,7 +88,34 @@ export const profileRoute = createRoute({
   component: ProfilePage,
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, questionRoute, notesRoute, profileRoute])
+export const experiencesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/experiences',
+  validateSearch: parseExperiencesSearch,
+  component: ExperiencesPage,
+})
+
+export const newExperienceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/experiences/new',
+  component: NewExperiencePage,
+})
+
+export const experienceEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/experiences/$experienceId/edit',
+  component: EditExperiencePage,
+})
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  questionRoute,
+  notesRoute,
+  profileRoute,
+  experiencesRoute,
+  newExperienceRoute,
+  experienceEditRoute,
+])
 
 export const router = createRouter({
   routeTree,

@@ -23,7 +23,7 @@ import {
 import { useMastery } from '@/lib/mastery'
 import { allQuestions, getModules } from '@/lib/questions'
 import { useSession } from '@/lib/session'
-import { type ThemePreference, useTheme } from '@/lib/theme'
+import { type ReadingSizePreference, type ThemePreference, useTheme } from '@/lib/theme'
 import { categories, type QuestionCategory } from '@/types/question'
 
 const repoUrl = import.meta.env.VITE_QFACE_REPO_URL || 'https://github.com/dogxii/QFace'
@@ -33,10 +33,20 @@ const themeOptions: Array<{ value: ThemePreference; label: string }> = [
   { value: 'dark', label: '深色' },
   { value: 'system', label: '系统' },
 ]
+const readingSizeOptions: Array<{ value: ReadingSizePreference; label: string }> = [
+  { value: 'default', label: '默认' },
+  { value: 'comfortable', label: '舒适' },
+  { value: 'large', label: '大号' },
+]
 const themePreferenceLabels: Record<ThemePreference, string> = {
   light: '浅色',
   dark: '深色',
   system: '跟随系统',
+}
+const readingSizeLabels: Record<ReadingSizePreference, string> = {
+  default: '默认',
+  comfortable: '舒适',
+  large: '大号',
 }
 
 interface AccountProgressScope {
@@ -81,6 +91,8 @@ export function AccountMenu() {
     preference: themePreference,
     resolvedTheme,
     setPreference: setThemePreference,
+    readingSize,
+    setReadingSize,
   } = useTheme()
   const { masteryMap } = useMastery()
   const [open, setOpen] = useState(false)
@@ -170,6 +182,7 @@ export function AccountMenu() {
     themePreference === 'system'
       ? `系统 · ${resolvedTheme === 'dark' ? '深色' : '浅色'}`
       : themePreferenceLabels[themePreference]
+  const readingSizeLabel = readingSizeLabels[readingSize]
 
   const updateProgressScope = (next: AccountProgressScope) => {
     setProgressScope(next)
@@ -371,24 +384,41 @@ export function AccountMenu() {
             >
               <Monitor size={17} aria-hidden="true" />
               <span>外观</span>
-              <small>{themeLabel}</small>
+              <small>
+                {themeLabel} · {readingSizeLabel}
+              </small>
             </button>
             {themeOpen ? (
-              <fieldset className="account-theme-options" aria-label="外观模式">
-                {themeOptions.map((option) => (
-                  <button
-                    type="button"
-                    key={option.value}
-                    data-active={themePreference === option.value}
-                    onClick={() => setThemePreference(option.value)}
-                  >
-                    <span>{option.label}</span>
-                    {themePreference === option.value ? (
-                      <Check size={12} aria-hidden="true" />
-                    ) : null}
-                  </button>
-                ))}
-              </fieldset>
+              <div className="account-appearance-options">
+                <fieldset className="account-theme-options" aria-label="外观模式">
+                  {themeOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      data-active={themePreference === option.value}
+                      onClick={() => setThemePreference(option.value)}
+                    >
+                      <span>{option.label}</span>
+                      {themePreference === option.value ? (
+                        <Check size={12} aria-hidden="true" />
+                      ) : null}
+                    </button>
+                  ))}
+                </fieldset>
+                <fieldset className="account-theme-options" aria-label="阅读字号">
+                  {readingSizeOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      data-active={readingSize === option.value}
+                      onClick={() => setReadingSize(option.value)}
+                    >
+                      <span>{option.label}</span>
+                      {readingSize === option.value ? <Check size={12} aria-hidden="true" /> : null}
+                    </button>
+                  ))}
+                </fieldset>
+              </div>
             ) : null}
           </div>
 

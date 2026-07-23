@@ -50,9 +50,10 @@ export async function apiSend<T>(
   )
 }
 
-export function githubLoginUrl() {
-  const redirect = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  return `/api/auth/github/start?redirect=${encodeURIComponent(redirect)}`
+export function githubLoginUrl(redirect?: string) {
+  const nextRedirect =
+    redirect ?? `${window.location.pathname}${window.location.search}${window.location.hash}`
+  return `/api/auth/github/start?redirect=${encodeURIComponent(nextRedirect)}`
 }
 
 function isCommentsPayload(payload: unknown): payload is { comments: CommunityComment[] } {
@@ -85,6 +86,71 @@ function createDevMockComments(sourceId: string): { comments: CommunityComment[]
     name: '面试官',
     avatarUrl: null,
     htmlUrl: 'https://github.com/frontend-interviewer',
+  }
+
+  if (sourceId.startsWith('exp-')) {
+    return {
+      comments: [
+        {
+          id: 'dev-experience-reply-1',
+          sourceId,
+          parentId: null,
+          kind: 'discussion',
+          content: '这种面经和题库打通会很有用，尤其是每个问题后面能直接跳到对应八股题。',
+          status: 'visible',
+          acceptedAt: null,
+          createdAt: '2026-07-23T07:42:00.000Z',
+          updatedAt: '2026-07-23T07:42:00.000Z',
+          deletedAt: null,
+          upvotes: 5,
+          downvotes: 0,
+          viewerVote: 0,
+          canEdit: false,
+          canDelete: false,
+          canAccept: false,
+          user: student,
+        },
+        {
+          id: 'dev-experience-reply-2',
+          sourceId,
+          parentId: null,
+          kind: 'discussion',
+          content:
+            '补一个观察：如果面经里问题比较散，自动匹配不一定百分百准，但作为第一步草稿已经很省时间，发布前自己检查一下链接就行。',
+          status: 'visible',
+          acceptedAt: null,
+          createdAt: '2026-07-23T07:48:00.000Z',
+          updatedAt: '2026-07-23T07:48:00.000Z',
+          deletedAt: null,
+          upvotes: 3,
+          downvotes: 0,
+          viewerVote: 1,
+          canEdit: false,
+          canDelete: false,
+          canAccept: false,
+          user,
+        },
+        {
+          id: 'dev-experience-reply-3',
+          sourceId,
+          parentId: 'dev-experience-reply-2',
+          kind: 'discussion',
+          content: '是的，尤其是 XSS/CSRF 这类关键词很准，项目相关的问题可以不强行关联。',
+          status: 'visible',
+          acceptedAt: null,
+          createdAt: '2026-07-23T07:51:00.000Z',
+          updatedAt: '2026-07-23T07:51:00.000Z',
+          deletedAt: null,
+          upvotes: 1,
+          downvotes: 0,
+          viewerVote: 0,
+          canEdit: false,
+          canDelete: false,
+          canAccept: false,
+          user: interviewer,
+        },
+      ],
+    }
   }
 
   return {

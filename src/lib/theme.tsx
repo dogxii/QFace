@@ -3,19 +3,27 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 export type ResolvedTheme = 'light' | 'dark'
+export type ReadingSizePreference = 'default' | 'comfortable' | 'large'
 
 export const themeStorageKey = 'qface:theme:v1'
+export const readingSizeStorageKey = 'qface:reading-size:v1'
 
 interface ThemeContextValue {
   preference: ThemePreference
   resolvedTheme: ResolvedTheme
   setPreference: (preference: ThemePreference) => void
+  readingSize: ReadingSizePreference
+  setReadingSize: (size: ReadingSizePreference) => void
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
 function isThemePreference(value: string | null): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system'
+}
+
+function isReadingSizePreference(value: string | null): value is ReadingSizePreference {
+  return value === 'default' || value === 'comfortable' || value === 'large'
 }
 
 function readThemePreference(): ThemePreference {
@@ -26,6 +34,17 @@ function readThemePreference(): ThemePreference {
     return isThemePreference(value) ? value : 'system'
   } catch {
     return 'system'
+  }
+}
+
+function readReadingSizePreference(): ReadingSizePreference {
+  if (typeof window === 'undefined') return 'default'
+
+  try {
+    const value = window.localStorage.getItem(readingSizeStorageKey)
+    return isReadingSizePreference(value) ? value : 'default'
+  } catch {
+    return 'default'
   }
 }
 
@@ -54,8 +73,19 @@ function applyTheme(preference: ThemePreference) {
   return resolvedTheme
 }
 
+function applyReadingSize(size: ReadingSizePreference) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.readingSize = size
+  }
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreferenceState] = useState<ThemePreference>(() => readThemePreference())
+  const [readingSize, setReadingSizeState] = useState<ReadingSizePreference>(() => {
+    const nextSize = readReadingSizePreference()
+    applyReadingSize(nextSize)
+    return nextSize
+  })
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => applyTheme(preference))
 
   useEffect(() => {
@@ -76,9 +106,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [preference])
 
   useEffect(() => {
+    applyReadingSize(readingSize)
+
+    try {
+      window.localStorage.setItem(readingSizeStorageKey, readingSize)
+    } catch {
+      // Ignore unavailable storage.
+    }
+  }, [readingSize])
+
+  useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== themeStorageKey) return
-      if (isThemePreference(event.newValue)) setPreferenceState(event.newValue)
+      if (event.key === themeStorageKey && isThemePreference(event.newValue)) {
+        setPreferenceState(event.newValue)
+      }
+      if (event.key === readingSizeStorageKey && isReadingSizePreference(event.newValue)) {
+        setReadingSizeState(event.newValue)
+      }
     }
 
     window.addEventListener('storage', onStorage)
@@ -89,9 +133,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setPreferenceState(nextPreference)
   }, [])
 
+  const setReadingSize = useCallback((nextSize: ReadingSizePreference) => {
+    setReadingSizeState(nextSize)
+  }, [])
+
   const value = useMemo(
-    () => ({ preference, resolvedTheme, setPreference }),
-    [preference, resolvedTheme, setPreference],
+    () => ({ preference, resolvedTheme, setPreference, readingSize, setReadingSize }),
+    [preference, resolvedTheme, setPreference, readingSize, setReadingSize],
   )
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

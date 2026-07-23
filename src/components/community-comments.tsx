@@ -2,6 +2,9 @@ import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import {
   ArrowDown,
   ArrowUp,
+  Copy,
+  ImageDown,
+  Info,
   Maximize2,
   MessageCircle,
   MessageSquareText,
@@ -28,7 +31,9 @@ import {
   saveRemoteNote,
   voteComment,
 } from '@/lib/community-api'
+import { copyMarkdownText, exportMarkdownImage, safeExportFilename } from '@/lib/export-image'
 import { getLocalNote, saveLocalNote } from '@/lib/local-notes'
+import { getQuestion } from '@/lib/questions'
 import { useSession } from '@/lib/session'
 import type {
   CommentKind,
@@ -40,7 +45,7 @@ import type {
 const MarkdownEditor = lazy(() => import('./markdown-editor'))
 const MarkdownContent = lazy(() => import('./markdown-content'))
 
-function LazyMarkdownContent({
+export function LazyMarkdownContent({
   content,
   emptyText,
   className,
@@ -64,7 +69,7 @@ const kindOptions: Array<{ value: CommentKind | 'all'; label: string }> = [
   { value: 'explain', label: '详解' },
 ]
 
-type CommentSort = 'hot' | 'latest'
+export type CommentSort = 'hot' | 'latest'
 
 const sortOptions: Array<{ value: CommentSort; label: string }> = [
   { value: 'hot', label: '热度' },
@@ -137,15 +142,15 @@ function isEdited(createdAt: string, updatedAt: string) {
   return updatedTime - createdTime > 60 * 1000
 }
 
-function CommentTime({ createdAt, updatedAt }: { createdAt: string; updatedAt: string }) {
+export function CommentTime({ createdAt, updatedAt }: { createdAt: string; updatedAt: string }) {
   const createdTime = parseTime(createdAt)
   const edited = isEdited(createdAt, updatedAt)
   const tooltip = createdTime ? formatFullDateTime(createdTime) : createdAt
 
   return (
     <time className="comment-time" dateTime={createdAt}>
-      {edited ? <span className="comment-edited-mark">(编辑过)</span> : null}
       {formatDisplayTime(createdAt)}
+      {edited ? <span className="comment-edited-mark">(编辑过)</span> : null}
       <span className="comment-time__tooltip" aria-hidden="true">
         {tooltip}
       </span>
@@ -153,7 +158,7 @@ function CommentTime({ createdAt, updatedAt }: { createdAt: string; updatedAt: s
   )
 }
 
-function buildTree(comments: CommunityComment[]) {
+export function buildTree(comments: CommunityComment[]) {
   const roots: CommunityComment[] = []
   const replies = new Map<string, CommunityComment[]>()
 
@@ -189,7 +194,7 @@ function commentHeat(comment: CommunityComment, replyCount: number) {
   return comment.upvotes * 3 - comment.downvotes + replyCount
 }
 
-function sortRootComments(
+export function sortRootComments(
   roots: CommunityComment[],
   replies: Map<string, CommunityComment[]>,
   sort: CommentSort,
@@ -538,6 +543,7 @@ function AnswerEditor({
   const draftsRef = useRef<EditorDrafts>(createEmptyDrafts())
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const codeEditorRef = useRef<ReactCodeMirrorRef | null>(null)
+  const exportContentRef = useRef<HTMLDivElement>(null)
   const modeScrollYRef = useRef<number | null>(null)
   const [drafts, setDrafts] = useState<EditorDrafts>(() => createEmptyDrafts())
   const [activeKind, setActiveKind] = useState<PublicCommentKind>('answer')
@@ -546,9 +552,11 @@ function AnswerEditor({
   const [collapsed, setCollapsedState] = useState(() => readAnswerEditorCollapsed())
   const [pendingCursor, setPendingCursor] = useState<number | null>(null)
   const [syncError, setSyncError] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
   const [publishing, setPublishing] = useState(false)
   const [unpublishing, setUnpublishing] = useState(false)
 
+  const question = getQuestion(sourceId)
   const activeDraft = drafts[activeKind]
   const activeLabel = draftKindLabels[activeKind]
   const content = activeDraft.content
@@ -569,6 +577,7 @@ function AnswerEditor({
     : content.trim()
       ? '本地草稿'
       : '本地保存'
+  const visibleStatusText = actionMessage || statusText
   const placeholder =
     activeKind === 'answer'
       ? '写回答，适合整理成面试时能直接说出的版本'
@@ -582,6 +591,13 @@ function AnswerEditor({
   useEffect(() => {
     draftsRef.current = drafts
   }, [drafts])
+
+  useEffect(() => {
+    if (!actionMessage) return
+
+    const timer = window.setTimeout(() => setActionMessage(''), 1600)
+    return () => window.clearTimeout(timer)
+  }, [actionMessage])
 
   useEffect(() => {
     const nextDrafts = mergeLocalAndRemoteDrafts(sourceId, null)
@@ -760,6 +776,34 @@ function AnswerEditor({
     updateContent(result.nextContent)
   }
 
+  const copyContent = async () => {
+    if (!content.trim()) return
+
+    try {
+      await copyMarkdownText(content)
+      setActionMessage('已复制')
+    } catch {
+      setActionMessage('复制失败')
+    }
+  }
+
+  const exportImage = async () => {
+    const html = exportContentRef.current?.querySelector('.markdown-content')?.innerHTML
+    if (!content.trim() || !html) return
+
+    try {
+      await exportMarkdownImage({
+        title: question?.title ?? 'QFace 作答',
+        meta: activeLabel,
+        html,
+        filename: `qface-${safeExportFilename(question?.title ?? sourceId)}-${activeKind}`,
+      })
+      setActionMessage('已导出')
+    } catch {
+      setActionMessage('导出失败')
+    }
+  }
+
   useLayoutEffect(() => {
     if (mode !== 'edit' || modeScrollYRef.current === null) return
 
@@ -842,7 +886,7 @@ function AnswerEditor({
             ))}
           </fieldset>
           <div className="answer-editor__head-actions">
-            <span className="answer-editor__state">{statusText}</span>
+            <span className="answer-editor__state">{visibleStatusText}</span>
             {!fullscreen ? (
               <button
                 className="answer-editor__collapse-button"
@@ -868,6 +912,35 @@ function AnswerEditor({
               </button>
             ))}
           </div>
+          <span className="answer-editor__toolbar-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="answer-editor__toolbar-action"
+            onClick={copyContent}
+            disabled={!content.trim()}
+            aria-label="复制全文"
+            title="复制全文"
+          >
+            <Copy size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="answer-editor__toolbar-action"
+            onClick={exportImage}
+            disabled={!content.trim()}
+            aria-label="导出图片"
+            title="导出图片"
+          >
+            <ImageDown size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="markdown-hint"
+            data-tooltip="Markdown 渲染：普通换行不分段，空一行分段"
+            aria-label="Markdown 渲染：普通换行不分段，空一行分段"
+          >
+            <Info size={13} aria-hidden="true" />
+          </button>
           <div className="answer-editor__view-actions">
             {!fullscreen ? (
               <fieldset className="answer-editor__mode" aria-label="编辑模式">
@@ -957,6 +1030,10 @@ function AnswerEditor({
             />
           </Suspense>
         )}
+
+        <div className="markdown-export-source" ref={exportContentRef} aria-hidden="true">
+          <LazyMarkdownContent content={content} className="markdown-content" />
+        </div>
       </div>
 
       <div className="answer-editor__footer">
@@ -995,15 +1072,23 @@ function AnswerEditor({
   )
 }
 
-function CommentComposer({
+export function CommentComposer({
   sourceId,
   parentId,
+  kind,
   compact,
+  placeholder,
+  showCount = true,
+  submitLabel,
   onCreated,
 }: {
   sourceId: string
   parentId?: string
+  kind?: CommentKind
   compact?: boolean
+  placeholder?: string
+  showCount?: boolean
+  submitLabel?: string
   onCreated: (comment: CommunityComment) => void | Promise<void>
 }) {
   const { user } = useSession()
@@ -1022,6 +1107,7 @@ function CommentComposer({
       const payload = await createComment({
         sourceId,
         parentId,
+        kind,
         content,
       })
       setContent('')
@@ -1044,7 +1130,7 @@ function CommentComposer({
       <textarea
         value={content}
         onChange={(event) => setContent(event.currentTarget.value)}
-        placeholder={parentId ? '回复' : '写回答'}
+        placeholder={placeholder ?? (parentId ? '回复' : '写回答')}
       />
       <div
         className={
@@ -1053,22 +1139,22 @@ function CommentComposer({
             : 'comment-composer__footer'
         }
       >
-        {!parentId ? <span>{content.trim().length} 字</span> : null}
+        {!parentId && showCount ? <span>{content.trim().length} 字</span> : null}
         <button type="button" onClick={submit} disabled={submitting || !content.trim()}>
-          {submitting ? '发布中' : parentId ? '回复' : '发布'}
+          {submitting ? '发布中' : (submitLabel ?? (parentId ? '回复' : '发布'))}
         </button>
       </div>
     </div>
   )
 }
 
-function CommentAvatar({ user }: { user: CommunityComment['user'] }) {
+export function CommentAvatar({ user }: { user: CommunityComment['user'] }) {
   const children = user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.login.slice(0, 1)
 
   return <span className="comment-item__avatar">{children}</span>
 }
 
-function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
+export function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
   const name = user.name || user.login
   const title = `@${user.login}`
 
@@ -1093,7 +1179,13 @@ function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
   )
 }
 
-function CollapsibleCommentContent({ content }: { content: string }) {
+export function CollapsibleCommentContent({
+  content,
+  className,
+}: {
+  content: string
+  className?: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const shouldCollapse = content.trim().length > commentCollapseThreshold
 
@@ -1103,6 +1195,7 @@ function CollapsibleCommentContent({ content }: { content: string }) {
         content={content}
         className={[
           'comment-content markdown-content',
+          className,
           shouldCollapse && !expanded ? 'comment-content--clamped' : '',
         ]
           .filter(Boolean)
@@ -1121,10 +1214,12 @@ function CollapsibleCommentContent({ content }: { content: string }) {
   )
 }
 
-function CommentItem({
+export function CommentItem({
   comment,
   replies,
   sourceId,
+  showKindLabel = true,
+  allowReplies = true,
   onCreated,
   onUpdated,
   onDeleted,
@@ -1132,6 +1227,8 @@ function CommentItem({
   comment: CommunityComment
   replies: CommunityComment[]
   sourceId: string
+  showKindLabel?: boolean
+  allowReplies?: boolean
   onCreated: (comment: CommunityComment) => void | Promise<void>
   onUpdated: (comment: CommunityComment) => void
   onDeleted: (commentId: string) => void
@@ -1172,7 +1269,7 @@ function CommentItem({
           <CommentAuthor user={comment.user} />
           <CommentTime createdAt={comment.createdAt} updatedAt={comment.updatedAt} />
           {comment.acceptedAt ? <em>已采纳</em> : null}
-          {!comment.parentId ? (
+          {showKindLabel && !comment.parentId ? (
             <span className="comment-kind-label">#{kindLabels[comment.kind]}</span>
           ) : null}
         </div>
@@ -1201,7 +1298,7 @@ function CommentItem({
           >
             <ArrowDown size={14} aria-hidden="true" />
           </button>
-          {!comment.parentId ? (
+          {allowReplies && !comment.parentId ? (
             <button
               className="comment-reply-button"
               type="button"
@@ -1212,7 +1309,7 @@ function CommentItem({
               <MessageCircle size={14} aria-hidden="true" />
             </button>
           ) : null}
-          {!comment.parentId && replies.length ? (
+          {allowReplies && !comment.parentId && replies.length ? (
             <button
               className="comment-replies-toggle"
               type="button"
@@ -1239,7 +1336,7 @@ function CommentItem({
           ) : null}
         </div>
 
-        {replying ? (
+        {allowReplies && replying ? (
           <CommentComposer
             sourceId={sourceId}
             parentId={comment.id}
@@ -1252,13 +1349,15 @@ function CommentItem({
           />
         ) : null}
 
-        {replies.length && repliesExpanded ? (
+        {allowReplies && replies.length && repliesExpanded ? (
           <div className="comment-replies">
             {replies.map((reply) => (
               <CommentItem
                 comment={reply}
                 replies={[]}
                 sourceId={sourceId}
+                showKindLabel={showKindLabel}
+                allowReplies={allowReplies}
                 onCreated={onCreated}
                 onUpdated={onUpdated}
                 onDeleted={onDeleted}
