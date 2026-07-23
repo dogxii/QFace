@@ -1,7 +1,29 @@
 import { allQuestions } from '@/lib/questions'
-import type { Question } from '@/types/question'
+import type { Question, QuestionCategory } from '@/types/question'
 
-const qfaceQuestionLinkPattern = /\[[^\]]*\]\(\/q\/([a-z0-9][a-z0-9-]{1,63})\)/gi
+const sourceIdPattern = '[a-z0-9][a-z0-9-]{1,63}'
+const qfaceQuestionLinkPattern = new RegExp(
+  `\\[[^\\]]*\\]\\(\\/q\\/(${sourceIdPattern})(?:\\?[^\\s)]*)?\\)`,
+  'gi',
+)
+const qfaceQuestionLinkReplacePattern = new RegExp(
+  `\\[[^\\]]*\\]\\(\\/q\\/${sourceIdPattern}(?:\\?[^\\s)]*)?\\)`,
+  'gi',
+)
+
+function readableTitleParam(value: string) {
+  return value
+    .replace(/\s+/g, '')
+    .replace(/[`*_~[\](){}<> "'?#&=%/\\]/g, '')
+    .trim()
+    .slice(0, 72)
+}
+
+export function questionLinkHref(sourceId: string, title?: string) {
+  const titleParam = title ? readableTitleParam(title) : ''
+
+  return `/q/${sourceId}${titleParam ? `?t=${titleParam}` : ''}`
+}
 
 function normalize(value: string) {
   return value
@@ -40,11 +62,20 @@ function scoreQuestion(query: string, question: Question) {
   return score
 }
 
-export function searchExperienceQuestions(query: string, limit = 8) {
+export interface ExperienceQuestionSearchOptions {
+  category?: QuestionCategory
+}
+
+export function searchExperienceQuestions(
+  query: string,
+  limit = 8,
+  options: ExperienceQuestionSearchOptions = {},
+) {
   const normalizedQuery = normalize(query)
   if (!normalizedQuery) return []
 
   return allQuestions
+    .filter((question) => !options.category || question.category === options.category)
     .map((question) => ({ question, score: scoreQuestion(normalizedQuery, question) }))
     .filter((item) => item.score > 0)
     .sort((left, right) => right.score - left.score)
@@ -67,10 +98,7 @@ export function extractExperienceLinks(content: string) {
 
     links.push({
       sourceId,
-      label: line
-        .replace(/\[[^\]]*\]\(\/q\/[a-z0-9-]+\)/gi, '')
-        .trim()
-        .slice(0, 80),
+      label: line.replace(qfaceQuestionLinkReplacePattern, '').trim().slice(0, 80),
       position: match.index ?? links.length,
     })
   }
@@ -78,8 +106,8 @@ export function extractExperienceLinks(content: string) {
   return links
 }
 
-export function appendQuestionLink(content: string, sourceId: string, label = '↗') {
-  const link = `[${label}](/q/${sourceId})`
+export function appendQuestionLink(content: string, sourceId: string, label = '↗', title?: string) {
+  const link = `[${label}](${questionLinkHref(sourceId, title)})`
   if (!content.trim()) return link
 
   return `${content}${content.endsWith(' ') ? '' : ' '}${link}`
@@ -93,18 +121,21 @@ function likelyQuestionLine(line: string) {
   return /[？?]|是什么|如何|怎么|为什么|讲下|说一下|流程|原理|区别|防御|实现/.test(value)
 }
 
-export function autoLinkExperienceContent(content: string) {
+export function autoLinkExperienceContent(
+  content: string,
+  options: ExperienceQuestionSearchOptions = {},
+) {
   let added = 0
   const next = content
     .split('\n')
     .map((line) => {
       if (!likelyQuestionLine(line) || line.includes('](/q/')) return line
 
-      const [match] = searchExperienceQuestions(line, 1)
+      const [match] = searchExperienceQuestions(line, 1, options)
       if (!match || scoreQuestion(line, match) < 6) return line
 
       added += 1
-      return appendQuestionLink(line, match.sourceId)
+      return appendQuestionLink(line, match.sourceId, '↗', match.title)
     })
     .join('\n')
 

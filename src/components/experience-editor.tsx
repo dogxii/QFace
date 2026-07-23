@@ -1,19 +1,22 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
-import { Copy, ImageDown, Info, Search } from 'lucide-react'
+import { Copy, ExternalLink, ImageDown, Info, Search } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   appendQuestionLink,
   autoLinkExperienceContent,
   extractExperienceLinks,
+  questionLinkHref,
   searchExperienceQuestions,
 } from '@/lib/experience-links'
 import { copyMarkdownText, exportMarkdownImage, safeExportFilename } from '@/lib/export-image'
 import type { ExperienceInput } from '@/types/experience'
-import type { Question } from '@/types/question'
+import { categories, type Question, type QuestionCategory } from '@/types/question'
 
 const MarkdownEditor = lazy(() => import('./markdown-editor'))
 const MarkdownContent = lazy(() => import('./markdown-content'))
+const questionCategoryStorageKey = 'qface:experience-question-category:v1'
+type QuestionCategoryFilter = QuestionCategory | 'all'
 
 export interface ExperienceEditorValue {
   title: string
@@ -25,6 +28,25 @@ export const emptyExperienceEditorValue: ExperienceEditorValue = {
   title: '',
   interviewDate: '',
   content: '',
+}
+
+function readQuestionCategoryFilter(): QuestionCategoryFilter {
+  if (typeof window === 'undefined') return '前端'
+
+  try {
+    const value = window.localStorage.getItem(questionCategoryStorageKey)
+    if (value === 'all' || categories.includes(value as QuestionCategory)) {
+      return value as QuestionCategoryFilter
+    }
+  } catch {
+    return '前端'
+  }
+
+  return '前端'
+}
+
+function toQuestionSearchCategory(value: QuestionCategoryFilter) {
+  return value === 'all' ? undefined : value
 }
 
 export function toExperienceInput(value: ExperienceEditorValue): ExperienceInput {
@@ -57,9 +79,15 @@ export function ExperienceEditor({
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const [pendingCursor, setPendingCursor] = useState<number | null>(null)
   const [toolMessage, setToolMessage] = useState('')
+  const [questionCategory, setQuestionCategory] = useState<QuestionCategoryFilter>(
+    readQuestionCategoryFilter,
+  )
   const questionResults = useMemo(
-    () => searchExperienceQuestions(questionQuery, 8),
-    [questionQuery],
+    () =>
+      searchExperienceQuestions(questionQuery, 8, {
+        category: toQuestionSearchCategory(questionCategory),
+      }),
+    [questionCategory, questionQuery],
   )
 
   const updateField = (field: keyof ExperienceEditorValue, next: string) => {
@@ -90,7 +118,12 @@ export function ExperienceEditor({
     const end = editorSelection?.to ?? textarea?.selectionEnd ?? value.content.length
     const selected = value.content.slice(start, end).trim()
     const fallback = question.title
-    const insertion = appendQuestionLink(selected || fallback, question.sourceId)
+    const insertion = appendQuestionLink(
+      selected || fallback,
+      question.sourceId,
+      '↗',
+      question.title,
+    )
     const nextContent = `${value.content.slice(0, start)}${insertion}${value.content.slice(end)}`
 
     updateField('content', nextContent)
@@ -100,7 +133,9 @@ export function ExperienceEditor({
   }
 
   const autoLink = () => {
-    const result = autoLinkExperienceContent(value.content)
+    const result = autoLinkExperienceContent(value.content, {
+      category: toQuestionSearchCategory(questionCategory),
+    })
     updateField('content', result.content)
     setToolMessage(result.added ? `已自动关联 ${result.added} 道题` : '暂未匹配到新题目')
   }
@@ -132,6 +167,14 @@ export function ExperienceEditor({
       setToolMessage('导出失败')
     }
   }
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(questionCategoryStorageKey, questionCategory)
+    } catch {
+      // Ignore storage failures; the current editor state still works.
+    }
+  }, [questionCategory])
 
   useEffect(() => {
     if (mode !== 'edit' || pendingCursor === null) return
@@ -233,27 +276,59 @@ export function ExperienceEditor({
 
       {questionToolOpen ? (
         <div className="experience-question-tool">
-          <input
-            value={questionQuery}
-            onChange={(event) => setQuestionQuery(event.currentTarget.value)}
-            placeholder="搜索题目，选择后插入 [↗]"
-            aria-label="搜索关联题目"
-          />
+          <div className="experience-question-tool__search">
+            <input
+              value={questionQuery}
+              onChange={(event) => setQuestionQuery(event.currentTarget.value)}
+              placeholder="搜索题目，选择后插入 [↗]"
+              aria-label="搜索关联题目"
+            />
+            <select
+              value={questionCategory}
+              onChange={(event) =>
+                setQuestionCategory(event.currentTarget.value as QuestionCategoryFilter)
+              }
+              aria-label="关联题目岗位"
+            >
+              <option value="all">全部岗位</option>
+              {categories.map((category) => (
+                <option value={category} key={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </div>
           {questionQuery.trim() ? (
             <div className="experience-question-results">
               {questionResults.length ? (
-                questionResults.map((question) => (
-                  <button
-                    type="button"
-                    onClick={() => insertQuestion(question)}
-                    key={question.sourceId}
-                  >
-                    <span>{question.title}</span>
-                    <small>
-                      {question.category} · {question.module}
-                    </small>
-                  </button>
-                ))
+                questionResults.map((question) => {
+                  const href = questionLinkHref(question.sourceId, question.title)
+
+                  return (
+                    <div className="experience-question-result" key={question.sourceId}>
+                      <button
+                        className="experience-question-result__insert"
+                        type="button"
+                        onClick={() => insertQuestion(question)}
+                      >
+                        <span>{question.title}</span>
+                        <small>
+                          {question.category} · {question.module}
+                        </small>
+                      </button>
+                      <a
+                        className="experience-question-result__open"
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`新窗口打开题目：${question.title}`}
+                        title="新窗口打开"
+                      >
+                        <ExternalLink size={14} aria-hidden="true" />
+                      </a>
+                    </div>
+                  )
+                })
               ) : (
                 <span>没有匹配题目</span>
               )}

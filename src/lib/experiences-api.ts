@@ -1,4 +1,5 @@
 import { apiGet, apiSend } from '@/lib/community-api'
+import { questionLinkHref } from '@/lib/experience-links'
 import type { Experience, ExperienceInput, ExperienceSort } from '@/types/experience'
 
 const devExperiencesKey = 'qface:dev-experiences:v1'
@@ -21,6 +22,10 @@ function now() {
   return new Date().toISOString()
 }
 
+function devQuestionLink(sourceId: string, title: string) {
+  return `[↗](${questionLinkHref(sourceId, title)})`
+}
+
 function createDevExperience(input?: Partial<Experience>): Experience {
   const timestamp = '2026-07-23T07:30:00.000Z'
   const content = [
@@ -28,23 +33,23 @@ function createDevExperience(input?: Partial<Experience>): Experience {
     '',
     '自我介绍',
     '',
-    'XSS 是什么？什么情况会发生？怎么防御？React 里用什么会发生？ [↗](/q/net-044)',
+    `XSS 是什么？什么情况会发生？怎么防御？React 里用什么会发生？ ${devQuestionLink('net-044', '什么是 XSS 攻击？如何防御？')}`,
     '',
-    'CSRF 是什么？怎么发生？防御办法？ [↗](/q/net-045)',
+    `CSRF 是什么？怎么发生？防御办法？ ${devQuestionLink('net-045', '什么是 CSRF 攻击？如何防御？')}`,
     '',
-    '浏览器输入 URL -> 页面出现流程 [↗](/q/net-025)',
+    `浏览器输入 URL -> 页面出现流程 ${devQuestionLink('net-025', '浏览器输入 URL 到页面显示，整个过程发生了什么？')}`,
     '',
-    '说一下事件循环 [↗](/q/js-006)',
+    `说一下事件循环 ${devQuestionLink('js-006', '什么是事件循环（Event Loop）？')}`,
     '',
     '如果一个长列表遍历会阻塞主线程，如何解决？',
     '',
-    'Vite 为什么启动快？如何实现按需编译？ [↗](/q/perf-025)',
+    `Vite 为什么启动快？如何实现按需编译？ ${devQuestionLink('perf-025', 'Vite 开发模式为什么快？这种性能优势有哪些边界？')}`,
     '',
     '了解 Node.js 吗？讲下 V8 的 GC 回收',
     '',
     '新生代和老生代了解吗？',
     '',
-    'React setState -> 虚拟 DOM -> 真实 DOM 的过程 [↗](/q/react-010)',
+    `React setState -> 虚拟 DOM -> 真实 DOM 的过程 ${devQuestionLink('react-010', 'React 的虚拟 DOM（Virtual DOM）是什么？有什么优缺点？')}`,
     '',
     '项目相关（仅提问，无技术问题）',
     '',
@@ -125,11 +130,11 @@ function devExperienceList() {
       content: [
         '字节前端实习二面：',
         '',
-        'Promise.all 和 Promise.allSettled 的区别 [↗](/q/js-026)',
+        `Promise.all 和 Promise.allSettled 的区别 ${devQuestionLink('js-026', '描述 JavaScript 中的迭代器协议和可迭代协议')}`,
         '',
-        '说一下闭包，项目里哪里用过 [↗](/q/js-004)',
+        `说一下闭包，项目里哪里用过 ${devQuestionLink('js-004', 'JavaScript 中 this 的指向规则是什么？')}`,
         '',
-        'React.memo 有什么作用，什么时候会失效 [↗](/q/react-021)',
+        `React.memo 有什么作用，什么时候会失效 ${devQuestionLink('react-021', 'React 中的 Context 和 Redux 如何选择？')}`,
         '',
         '虚拟列表怎么做，动态高度怎么处理',
         '',
