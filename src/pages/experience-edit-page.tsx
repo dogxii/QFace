@@ -7,6 +7,15 @@ import {
   toExperienceInput,
 } from '@/components/experience-editor'
 import { githubLoginUrl } from '@/lib/community-api'
+import {
+  clearExperienceDraft,
+  editExperienceDraftKey,
+  newExperienceDraftKey,
+  readExperienceDraft,
+  sameExperienceDraftValue,
+  selectExperienceDraftValue,
+  writeExperienceDraft,
+} from '@/lib/experience-drafts'
 import { createExperience, getExperience, updateExperience } from '@/lib/experiences-api'
 import { useSession } from '@/lib/session'
 import { experienceEditRoute } from '@/router'
@@ -23,7 +32,9 @@ function toEditorValue(experience: Experience): ExperienceEditorValue {
 export function NewExperiencePage() {
   const navigate = useNavigate()
   const { user } = useSession()
-  const [value, setValue] = useState<ExperienceEditorValue>(emptyExperienceEditorValue)
+  const [value, setValue] = useState<ExperienceEditorValue>(
+    () => readExperienceDraft(newExperienceDraftKey)?.value ?? emptyExperienceEditorValue,
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const canWrite = Boolean(user || import.meta.env.DEV)
@@ -31,6 +42,10 @@ export function NewExperiencePage() {
   useEffect(() => {
     document.title = '写面经 · QFace'
   }, [])
+
+  useEffect(() => {
+    writeExperienceDraft(newExperienceDraftKey, value)
+  }, [value])
 
   const submit = async () => {
     if (!canWrite) {
@@ -43,6 +58,7 @@ export function NewExperiencePage() {
     try {
       const payload = await createExperience(toExperienceInput(value))
       if (payload.experience) {
+        clearExperienceDraft(newExperienceDraftKey)
         navigate({ to: '/experiences' })
       }
     } catch (caught) {
@@ -82,12 +98,18 @@ export function EditExperiencePage() {
   const { experienceId } = experienceEditRoute.useParams()
   const navigate = useNavigate()
   const [value, setValue] = useState<ExperienceEditorValue>(emptyExperienceEditorValue)
+  const [baseValue, setBaseValue] = useState<ExperienceEditorValue | null>(null)
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
+    const draftKey = editExperienceDraftKey(experienceId)
+
     setLoading(true)
+    setError('')
+    setBaseValue(null)
     getExperience(experienceId)
       .then((payload) => {
         if (!payload.experience) {
@@ -98,12 +120,34 @@ export function EditExperiencePage() {
           setError('没有编辑权限')
           return
         }
-        setValue(toEditorValue(payload.experience))
+
+        const serverValue = toEditorValue(payload.experience)
+        setBaseValue(serverValue)
+        setBaseUpdatedAt(payload.experience.updatedAt)
+        setValue(
+          selectExperienceDraftValue(
+            serverValue,
+            payload.experience.updatedAt,
+            readExperienceDraft(draftKey),
+          ),
+        )
         document.title = `编辑 ${payload.experience.title} · QFace`
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : '面经加载失败'))
       .finally(() => setLoading(false))
   }, [experienceId])
+
+  useEffect(() => {
+    if (loading || !baseValue) return
+
+    const draftKey = editExperienceDraftKey(experienceId)
+    if (sameExperienceDraftValue(value, baseValue)) {
+      clearExperienceDraft(draftKey)
+      return
+    }
+
+    writeExperienceDraft(draftKey, value, { baseUpdatedAt })
+  }, [baseUpdatedAt, baseValue, experienceId, loading, value])
 
   const submit = async () => {
     setSaving(true)
@@ -111,6 +155,7 @@ export function EditExperiencePage() {
     try {
       const payload = await updateExperience(experienceId, toExperienceInput(value))
       if (payload.experience) {
+        clearExperienceDraft(editExperienceDraftKey(experienceId))
         navigate({ to: '/experiences' })
       }
     } catch (caught) {

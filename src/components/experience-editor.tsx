@@ -117,13 +117,7 @@ export function ExperienceEditor({
     const start = editorSelection?.from ?? textarea?.selectionStart ?? value.content.length
     const end = editorSelection?.to ?? textarea?.selectionEnd ?? value.content.length
     const selected = value.content.slice(start, end).trim()
-    const fallback = question.title
-    const insertion = appendQuestionLink(
-      selected || fallback,
-      question.sourceId,
-      '↗',
-      question.title,
-    )
+    const insertion = appendQuestionLink(selected, question.sourceId, '↗', question.title)
     const nextContent = `${value.content.slice(0, start)}${insertion}${value.content.slice(end)}`
 
     updateField('content', nextContent)
@@ -206,7 +200,7 @@ export function ExperienceEditor({
           <input
             value={value.title}
             onChange={(event) => updateField('title', event.currentTarget.value)}
-            placeholder="标题，比如 WXG 企业微信日常一面"
+            placeholder="XX公司XX岗位日常一面"
             aria-label="面经标题"
           />
           <input

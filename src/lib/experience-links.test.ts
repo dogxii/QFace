@@ -28,6 +28,12 @@ describe('experience question links', () => {
     })
   })
 
+  it('inserts only the link when no interview text is selected', () => {
+    expect(appendQuestionLink('', 'net-044', '↗', '什么是 XSS 攻击？如何防御？')).toBe(
+      '[↗](/q/net-044?t=什么是XSS攻击？如何防御？)',
+    )
+  })
+
   it('filters association search by category', () => {
     expect(
       searchExperienceQuestions('闭包', 8, { category: '前端' }).every(
