@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "qface",
+  "compatibility_date": "2026-07-22",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "qface",
+      "database_id": "db2204f1-f683-4d18-9de4-7480be6f3fb6",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

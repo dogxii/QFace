@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+/dist
+
+# local environment files
+.env
+.env.local
+.env.*.local
+
+# tests and coverage
+/coverage
+/test-results
+/playwright-report
+/.playwright-cli
+/output/playwright
+/.wrangler
+
+# logs and editor files
+*.log
+.DS_Store
+
+# typescript
+*.tsbuildinfo

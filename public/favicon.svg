@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="QFace">
+  <title>QFace</title>
+  <rect x="1" y="1" width="62" height="62" rx="17" fill="#fff" stroke="#e4e4e9" stroke-width="2"/>
+  <path
+    d="M19 31.5C19 22.9 25.2 17 34 17s15 5.9 15 14.5S42.8 46 34 46 19 40.1 19 31.5Z"
+    fill="none"
+    stroke="#111118"
+    stroke-width="5.8"
+  />
+  <path
+    d="M43 43.5 50 50.5"
+    fill="none"
+    stroke="#6366f1"
+    stroke-linecap="round"
+    stroke-width="5.8"
+  />
+  <circle cx="29.5" cy="31.5" r="2.35" fill="#111118"/>
+  <circle cx="38.5" cy="31.5" r="2.35" fill="#111118"/>
+</svg>
