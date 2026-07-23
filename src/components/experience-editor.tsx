@@ -200,7 +200,7 @@ export function ExperienceEditor({
           <input
             value={value.title}
             onChange={(event) => updateField('title', event.currentTarget.value)}
-            placeholder="XX公司XX岗位日常一面"
+            placeholder="标题，如腾讯企微日常一面"
             aria-label="面经标题"
           />
           <input
