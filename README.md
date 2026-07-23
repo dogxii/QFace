@@ -20,6 +20,11 @@
 
 https://qface.dogxi.me
 
+<div align="center">
+  <img src="docs/screenshots/home.webp" alt="QFace 题库首页" width="49%" />
+  <img src="docs/screenshots/question.webp" alt="QFace 题目详情" width="49%" />
+</div>
+
 ## 📚 简介
 
 QFace 是一个从 iFace 固定题库延伸出来的中文面试题学习与问答社区。它保留题库本身，但不导入、不展示 iFace 里的 AI 生成答案；每道题都以“固定问题 + 用户作答 + 讨论沉淀”的方式组织。
