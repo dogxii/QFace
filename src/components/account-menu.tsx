@@ -253,15 +253,15 @@ export function AccountMenu() {
       {open ? (
         <div className="account-popover" role="menu">
           <div className="account-summary">
-            <Link to="/notes" onClick={() => setOpen(false)}>
+            <Link to="/profile" onClick={() => setOpen(false)}>
               <Avatar avatarUrl={user?.avatarUrl} label={user?.login ?? 'Q'} large />
               <span>
                 <strong>{user?.name || user?.login || '本地账户'}</strong>
                 <small>
                   {user
                     ? `@${user.login}`
-                    : visibleNoteCount
-                      ? `${visibleNoteCount} 条本地笔记`
+                    : visibleNoteCount || bookmarkCount
+                      ? `${visibleNoteCount} 笔记 · ${bookmarkCount} 收藏`
                       : '未登录'}
                 </small>
               </span>

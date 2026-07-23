@@ -2,8 +2,8 @@ import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
   Maximize2,
+  MessageCircle,
   MessageSquareText,
   Minimize2,
   Trash2,
@@ -26,7 +26,6 @@ import {
   getRemoteNote,
   githubLoginUrl,
   saveRemoteNote,
-  updateComment,
   voteComment,
 } from '@/lib/community-api'
 import { getLocalNote, saveLocalNote } from '@/lib/local-notes'
@@ -72,6 +71,8 @@ const sortOptions: Array<{ value: CommentSort; label: string }> = [
   { value: 'latest', label: '最新' },
 ]
 
+const commentCollapseThreshold = 280
+
 const kindLabels: Record<CommentKind, string> = {
   answer: '回答',
   explain: '详解',
@@ -91,18 +92,65 @@ const markdownTools = [
 
 type MarkdownToolId = (typeof markdownTools)[number]['id']
 
-function formatTime(value: string) {
-  try {
-    return new Date(value).toLocaleString('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-  } catch {
-    return value
+function padTimeUnit(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+function parseTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatFullDateTime(date: Date) {
+  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())} ${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}`
+}
+
+function formatDisplayTime(value: string) {
+  const date = parseTime(value)
+  if (!date) return value
+
+  const now = Date.now()
+  const diff = now - date.getTime()
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+
+  if (diff >= 0 && diff < 7 * day) {
+    if (diff < minute) return '刚刚'
+    if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`
+    if (diff < day) return `${Math.floor(diff / hour)} 小时前`
+    return `${Math.floor(diff / day)} 天前`
   }
+
+  const currentYear = new Date().getFullYear()
+  const monthDay = `${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())}`
+
+  if (date.getFullYear() === currentYear) return monthDay
+  return `${date.getFullYear()}-${monthDay}`
+}
+
+function isEdited(createdAt: string, updatedAt: string) {
+  const createdTime = parseTime(createdAt)?.getTime()
+  const updatedTime = parseTime(updatedAt)?.getTime()
+  if (!createdTime || !updatedTime) return false
+
+  return updatedTime - createdTime > 60 * 1000
+}
+
+function CommentTime({ createdAt, updatedAt }: { createdAt: string; updatedAt: string }) {
+  const createdTime = parseTime(createdAt)
+  const edited = isEdited(createdAt, updatedAt)
+  const tooltip = createdTime ? formatFullDateTime(createdTime) : createdAt
+
+  return (
+    <time className="comment-time" dateTime={createdAt}>
+      {edited ? <span className="comment-edited-mark">(编辑过)</span> : null}
+      {formatDisplayTime(createdAt)}
+      <span className="comment-time__tooltip" aria-hidden="true">
+        {tooltip}
+      </span>
+    </time>
+  )
 }
 
 function buildTree(comments: CommunityComment[]) {
@@ -525,13 +573,6 @@ function AnswerEditor({
     activeKind === 'answer'
       ? '写回答，适合整理成面试时能直接说出的版本'
       : '写详解，可以展开原理、例子和代码'
-  const collapsedSummary = [
-    drafts.answer.content.trim() ? '回答草稿' : '',
-    drafts.explain.content.trim() ? '详解草稿' : '',
-  ]
-    .filter(Boolean)
-    .join(' · ')
-
   const setEditorCollapsed = (next: boolean) => {
     setCollapsedState(next)
     writeAnswerEditorCollapsed(next)
@@ -774,7 +815,6 @@ function AnswerEditor({
         >
           <span>
             <strong>我的作答</strong>
-            {collapsedSummary ? <small>{collapsedSummary}</small> : null}
           </span>
           <em>展开</em>
         </button>
@@ -1006,8 +1046,14 @@ function CommentComposer({
         onChange={(event) => setContent(event.currentTarget.value)}
         placeholder={parentId ? '回复' : '写回答'}
       />
-      <div className="comment-composer__footer">
-        <span>{content.trim().length} 字</span>
+      <div
+        className={
+          parentId
+            ? 'comment-composer__footer comment-composer__footer--reply'
+            : 'comment-composer__footer'
+        }
+      >
+        {!parentId ? <span>{content.trim().length} 字</span> : null}
         <button type="button" onClick={submit} disabled={submitting || !content.trim()}>
           {submitting ? '发布中' : parentId ? '回复' : '发布'}
         </button>
@@ -1018,24 +1064,8 @@ function CommentComposer({
 
 function CommentAvatar({ user }: { user: CommunityComment['user'] }) {
   const children = user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.login.slice(0, 1)
-  const label = `打开 ${user.login} 的 GitHub 主页`
 
-  if (!user.htmlUrl) {
-    return <span className="comment-item__avatar">{children}</span>
-  }
-
-  return (
-    <a
-      className="comment-item__avatar comment-item__avatar--link"
-      href={user.htmlUrl}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={label}
-      title={`@${user.login}`}
-    >
-      {children}
-    </a>
-  )
+  return <span className="comment-item__avatar">{children}</span>
 }
 
 function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
@@ -1063,6 +1093,34 @@ function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
   )
 }
 
+function CollapsibleCommentContent({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const shouldCollapse = content.trim().length > commentCollapseThreshold
+
+  return (
+    <>
+      <LazyMarkdownContent
+        content={content}
+        className={[
+          'comment-content markdown-content',
+          shouldCollapse && !expanded ? 'comment-content--clamped' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      />
+      {shouldCollapse ? (
+        <button
+          className="comment-content-toggle"
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? '收起' : '展开全文'}
+        </button>
+      ) : null}
+    </>
+  )
+}
+
 function CommentItem({
   comment,
   replies,
@@ -1080,19 +1138,10 @@ function CommentItem({
 }) {
   const { user } = useSession()
   const [replying, setReplying] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(comment.content)
-
-  const saveEdit = async () => {
-    if (!draft.trim()) return
-
-    const payload = await updateComment(comment.id, draft)
-    onUpdated(payload.comment)
-    setEditing(false)
-  }
+  const [repliesExpanded, setRepliesExpanded] = useState(false)
 
   const remove = async () => {
-    if (!window.confirm('删除这条评论？')) return
+    if (!window.confirm('删除这条回复？')) return
 
     await deleteComment(comment.id)
     onDeleted(comment.id)
@@ -1121,29 +1170,14 @@ function CommentItem({
       <div className="comment-item__main">
         <div className="comment-item__meta">
           <CommentAuthor user={comment.user} />
-          <span>{formatTime(comment.createdAt)}</span>
-          {!comment.parentId ? <em>{kindLabels[comment.kind]}</em> : null}
+          <CommentTime createdAt={comment.createdAt} updatedAt={comment.updatedAt} />
           {comment.acceptedAt ? <em>已采纳</em> : null}
+          {!comment.parentId ? (
+            <span className="comment-kind-label">#{kindLabels[comment.kind]}</span>
+          ) : null}
         </div>
 
-        {editing ? (
-          <div className="comment-edit">
-            <textarea value={draft} onChange={(event) => setDraft(event.currentTarget.value)} />
-            <div>
-              <button type="button" onClick={() => setEditing(false)}>
-                取消
-              </button>
-              <button type="button" onClick={saveEdit}>
-                保存
-              </button>
-            </div>
-          </div>
-        ) : (
-          <LazyMarkdownContent
-            content={comment.content}
-            className="comment-content markdown-content"
-          />
-        )}
+        <CollapsibleCommentContent content={comment.content} />
 
         <div className="comment-actions">
           <button
@@ -1168,14 +1202,23 @@ function CommentItem({
             <ArrowDown size={14} aria-hidden="true" />
           </button>
           {!comment.parentId ? (
-            <button type="button" onClick={() => setReplying((current) => !current)}>
-              <ChevronDown size={14} aria-hidden="true" />
-              回复
+            <button
+              className="comment-reply-button"
+              type="button"
+              onClick={() => setReplying((current) => !current)}
+              aria-label={replying ? '收起回复框' : '回复'}
+              title={replying ? '收起回复框' : '回复'}
+            >
+              <MessageCircle size={14} aria-hidden="true" />
             </button>
           ) : null}
-          {comment.canEdit ? (
-            <button type="button" onClick={() => setEditing(true)}>
-              编辑
+          {!comment.parentId && replies.length ? (
+            <button
+              className="comment-replies-toggle"
+              type="button"
+              onClick={() => setRepliesExpanded((current) => !current)}
+            >
+              {repliesExpanded ? '收起回复' : `${replies.length} 条回复`}
             </button>
           ) : null}
           {comment.canAccept ? (
@@ -1183,10 +1226,15 @@ function CommentItem({
               {comment.acceptedAt ? '取消采纳' : '采纳'}
             </button>
           ) : null}
-          {comment.canDelete ? (
-            <button type="button" onClick={remove}>
+          {comment.parentId && comment.canDelete ? (
+            <button
+              className="comment-delete-button"
+              type="button"
+              onClick={remove}
+              aria-label="删除回复"
+              title="删除回复"
+            >
               <Trash2 size={14} aria-hidden="true" />
-              删除
             </button>
           ) : null}
         </div>
@@ -1199,11 +1247,12 @@ function CommentItem({
             onCreated={(reply) => {
               onCreated(reply)
               setReplying(false)
+              setRepliesExpanded(true)
             }}
           />
         ) : null}
 
-        {replies.length ? (
+        {replies.length && repliesExpanded ? (
           <div className="comment-replies">
             {replies.map((reply) => (
               <CommentItem

@@ -2,6 +2,7 @@ import { createRootRoute, createRoute, createRouter, Outlet } from '@tanstack/re
 import { SiteHeader } from '@/components/site-header'
 import { HomePage, type HomeSearch } from '@/pages/home-page'
 import { NotesPage } from '@/pages/notes-page'
+import { ProfilePage } from '@/pages/profile-page'
 import { QuestionPage } from '@/pages/question-page'
 
 function parseString(value: unknown) {
@@ -67,7 +68,13 @@ export const notesRoute = createRoute({
   component: NotesPage,
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, questionRoute, notesRoute])
+export const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/profile',
+  component: ProfilePage,
+})
+
+const routeTree = rootRoute.addChildren([homeRoute, questionRoute, notesRoute, profileRoute])
 
 export const router = createRouter({
   routeTree,
