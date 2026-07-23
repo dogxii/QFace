@@ -1,11 +1,11 @@
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   Maximize2,
   MessageSquareText,
   Minimize2,
-  ThumbsDown,
-  ThumbsUp,
   Trash2,
 } from 'lucide-react'
 import {
@@ -65,6 +65,13 @@ const kindOptions: Array<{ value: CommentKind | 'all'; label: string }> = [
   { value: 'explain', label: '详解' },
 ]
 
+type CommentSort = 'hot' | 'latest'
+
+const sortOptions: Array<{ value: CommentSort; label: string }> = [
+  { value: 'hot', label: '热度' },
+  { value: 'latest', label: '最新' },
+]
+
 const kindLabels: Record<CommentKind, string> = {
   answer: '回答',
   explain: '详解',
@@ -110,7 +117,48 @@ function buildTree(comments: CommunityComment[]) {
     }
   }
 
+  for (const [parentId, items] of replies) {
+    replies.set(
+      parentId,
+      [...items].sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt)),
+    )
+  }
+
   return { roots, replies }
+}
+
+function compareAccepted(left: CommunityComment, right: CommunityComment) {
+  if (left.acceptedAt && !right.acceptedAt) return -1
+  if (!left.acceptedAt && right.acceptedAt) return 1
+  return 0
+}
+
+function compareLatest(left: CommunityComment, right: CommunityComment) {
+  return Date.parse(right.createdAt) - Date.parse(left.createdAt)
+}
+
+function commentHeat(comment: CommunityComment, replyCount: number) {
+  return comment.upvotes * 3 - comment.downvotes + replyCount
+}
+
+function sortRootComments(
+  roots: CommunityComment[],
+  replies: Map<string, CommunityComment[]>,
+  sort: CommentSort,
+) {
+  return [...roots].sort((left, right) => {
+    const accepted = compareAccepted(left, right)
+    if (accepted) return accepted
+
+    if (sort === 'latest') return compareLatest(left, right)
+
+    const heat =
+      commentHeat(right, replies.get(right.id)?.length ?? 0) -
+      commentHeat(left, replies.get(left.id)?.length ?? 0)
+    if (heat) return heat
+
+    return compareLatest(left, right)
+  })
 }
 
 function getSelectedLineRange(content: string, start: number, end: number) {
@@ -200,6 +248,7 @@ export function CommunityComments({ sourceId }: { sourceId: string }) {
   const { refresh } = useSession()
   const [comments, setComments] = useState<CommunityComment[]>([])
   const [kind, setKind] = useState<CommentKind | 'all'>('all')
+  const [sort, setSort] = useState<CommentSort>('hot')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -208,14 +257,14 @@ export function CommunityComments({ sourceId }: { sourceId: string }) {
     setError('')
 
     try {
-      const payload = await getComments(sourceId, kind)
+      const payload = await getComments(sourceId)
       setComments(payload.comments)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '评论加载失败')
     } finally {
       setLoading(false)
     }
-  }, [kind, sourceId])
+  }, [sourceId])
 
   useEffect(() => {
     loadComments()
@@ -227,6 +276,14 @@ export function CommunityComments({ sourceId }: { sourceId: string }) {
   }, [loadComments, refresh])
 
   const { roots, replies } = useMemo(() => buildTree(comments), [comments])
+  const filteredRoots = useMemo(
+    () => roots.filter((comment) => kind === 'all' || comment.kind === kind),
+    [kind, roots],
+  )
+  const sortedRoots = useMemo(
+    () => sortRootComments(filteredRoots, replies, sort),
+    [filteredRoots, replies, sort],
+  )
 
   const replaceComment = (nextComment: CommunityComment) => {
     setComments((current) =>
@@ -269,19 +326,32 @@ export function CommunityComments({ sourceId }: { sourceId: string }) {
               </button>
             ))}
           </fieldset>
+
+          <fieldset className="community-sort" aria-label="回答排序">
+            {sortOptions.map((item) => (
+              <button
+                type="button"
+                data-active={sort === item.value ? 'true' : undefined}
+                onClick={() => setSort(item.value)}
+                key={item.value}
+              >
+                {item.label}
+              </button>
+            ))}
+          </fieldset>
         </div>
 
         {error ? <div className="community-message">{error}</div> : null}
         {loading ? <div className="community-message">加载中</div> : null}
 
-        {!loading && !roots.length ? (
+        {!loading && !sortedRoots.length ? (
           <div className="community-empty">
             <span>{kind === 'all' ? '暂无回答' : `暂无${kindLabels[kind]}`}</span>
           </div>
         ) : null}
 
         <div className="comment-list">
-          {roots.map((comment) => (
+          {sortedRoots.map((comment) => (
             <CommentItem
               comment={comment}
               replies={replies.get(comment.id) ?? []}
@@ -455,13 +525,12 @@ function AnswerEditor({
     activeKind === 'answer'
       ? '写回答，适合整理成面试时能直接说出的版本'
       : '写详解，可以展开原理、例子和代码'
-  const collapsedSummary =
-    [
-      drafts.answer.content.trim() ? '回答草稿' : '',
-      drafts.explain.content.trim() ? '详解草稿' : '',
-    ]
-      .filter(Boolean)
-      .join(' · ') || '只看大家的回答'
+  const collapsedSummary = [
+    drafts.answer.content.trim() ? '回答草稿' : '',
+    drafts.explain.content.trim() ? '详解草稿' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   const setEditorCollapsed = (next: boolean) => {
     setCollapsedState(next)
@@ -705,7 +774,7 @@ function AnswerEditor({
         >
           <span>
             <strong>我的作答</strong>
-            <small>{collapsedSummary}</small>
+            {collapsedSummary ? <small>{collapsedSummary}</small> : null}
           </span>
           <em>展开</em>
         </button>
@@ -947,6 +1016,53 @@ function CommentComposer({
   )
 }
 
+function CommentAvatar({ user }: { user: CommunityComment['user'] }) {
+  const children = user.avatarUrl ? <img src={user.avatarUrl} alt="" /> : user.login.slice(0, 1)
+  const label = `打开 ${user.login} 的 GitHub 主页`
+
+  if (!user.htmlUrl) {
+    return <span className="comment-item__avatar">{children}</span>
+  }
+
+  return (
+    <a
+      className="comment-item__avatar comment-item__avatar--link"
+      href={user.htmlUrl}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={label}
+      title={`@${user.login}`}
+    >
+      {children}
+    </a>
+  )
+}
+
+function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
+  const name = user.name || user.login
+  const title = `@${user.login}`
+
+  if (!user.htmlUrl) {
+    return (
+      <strong className="comment-author" title={title}>
+        {name}
+      </strong>
+    )
+  }
+
+  return (
+    <a
+      className="comment-author"
+      href={user.htmlUrl}
+      target="_blank"
+      rel="noreferrer"
+      title={title}
+    >
+      <strong>{name}</strong>
+    </a>
+  )
+}
+
 function CommentItem({
   comment,
   replies,
@@ -1000,18 +1116,11 @@ function CommentItem({
 
   return (
     <article className="comment-item">
-      <div className="comment-item__avatar">
-        {comment.user.avatarUrl ? (
-          <img src={comment.user.avatarUrl} alt="" />
-        ) : (
-          comment.user.login.slice(0, 1)
-        )}
-      </div>
+      <CommentAvatar user={comment.user} />
 
       <div className="comment-item__main">
         <div className="comment-item__meta">
-          <strong>{comment.user.name || comment.user.login}</strong>
-          <span>@{comment.user.login}</span>
+          <CommentAuthor user={comment.user} />
           <span>{formatTime(comment.createdAt)}</span>
           {!comment.parentId ? <em>{kindLabels[comment.kind]}</em> : null}
           {comment.acceptedAt ? <em>已采纳</em> : null}
@@ -1038,20 +1147,25 @@ function CommentItem({
 
         <div className="comment-actions">
           <button
+            className="comment-vote"
             type="button"
             data-active={comment.viewerVote === 1 ? 'true' : undefined}
             onClick={() => vote(1)}
+            aria-label="顶贴"
+            title="顶贴"
           >
-            <ThumbsUp size={14} aria-hidden="true" />
-            {comment.upvotes}
+            <ArrowUp size={14} aria-hidden="true" />
+            <span>{comment.upvotes}</span>
           </button>
           <button
+            className="comment-vote comment-vote--down"
             type="button"
             data-active={comment.viewerVote === -1 ? 'true' : undefined}
             onClick={() => vote(-1)}
+            aria-label="踩贴"
+            title="踩贴"
           >
-            <ThumbsDown size={14} aria-hidden="true" />
-            {comment.downvotes}
+            <ArrowDown size={14} aria-hidden="true" />
           </button>
           {!comment.parentId ? (
             <button type="button" onClick={() => setReplying((current) => !current)}>

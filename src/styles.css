@@ -1173,7 +1173,8 @@ select::-ms-expand {
   background: var(--surface-2);
 }
 
-.community-tabs {
+.community-tabs,
+.community-sort {
   display: flex;
   width: auto;
   align-items: center;
@@ -1185,7 +1186,12 @@ select::-ms-expand {
   border: 0;
 }
 
-.community-tabs button {
+.community-sort {
+  margin-left: auto;
+}
+
+.community-tabs button,
+.community-sort button {
   display: inline-flex;
   min-height: 28px;
   align-items: center;
@@ -1198,7 +1204,9 @@ select::-ms-expand {
 }
 
 .community-tabs button:hover,
-.community-tabs button[data-active="true"] {
+.community-tabs button[data-active="true"],
+.community-sort button:hover,
+.community-sort button[data-active="true"] {
   color: var(--ink);
   background: var(--surface-2);
 }
@@ -1624,7 +1632,8 @@ select::-ms-expand {
   display: flex;
   min-height: 30px;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: 2px;
 }
 
@@ -1763,6 +1772,10 @@ select::-ms-expand {
   font-weight: 720;
 }
 
+.comment-item__avatar--link:hover {
+  opacity: 0.82;
+}
+
 .comment-item__avatar img {
   display: block;
   width: 100%;
@@ -1788,6 +1801,22 @@ select::-ms-expand {
   color: var(--cell);
   font-size: 13px;
   font-weight: 650;
+}
+
+.comment-author {
+  color: var(--cell);
+  text-decoration: none;
+}
+
+.comment-author:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--underline);
+  text-underline-offset: 3px;
+}
+
+.comment-author strong {
+  color: inherit;
 }
 
 .comment-item__meta em {
@@ -2020,6 +2049,14 @@ select::-ms-expand {
 .comment-actions button[data-active="true"] {
   color: var(--ink);
   background: var(--surface-2);
+}
+
+.comment-vote {
+  min-width: 42px;
+}
+
+.comment-vote--down {
+  min-width: 28px;
 }
 
 .comment-edit {
