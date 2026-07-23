@@ -3,6 +3,11 @@
   "name": "qface",
   "compatibility_date": "2026-07-22",
   "pages_build_output_dir": "dist",
+  "vars": {
+    "GITHUB_CLIENT_ID": "Ov23lipVHNO1cDaN2Ikb",
+    "SITE_URL": "https://qface.dogxi.me",
+    "VITE_QFACE_REPO_URL": "https://github.com/dogxii/QFace"
+  },
   "d1_databases": [
     {
       "binding": "DB",

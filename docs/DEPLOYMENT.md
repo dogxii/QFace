@@ -68,14 +68,25 @@ bun run db:migrate:local
 | Homepage URL | `http://localhost:8788` | `https://qface.dogxi.me` |
 | Authorization callback URL | `http://localhost:8788/api/auth/github/callback` | `https://qface.dogxi.me/api/auth/github/callback` |
 
-Cloudflare Pages 环境变量：
+Cloudflare Pages 使用 `wrangler.jsonc` 作为配置源时，普通变量需要写进 `vars`，只有加密变量通过 Dashboard 或 Wrangler Secret 管理。
+
+已在 `wrangler.jsonc` 管理的普通变量：
+
+```jsonc
+{
+  "vars": {
+    "GITHUB_CLIENT_ID": "your-github-client-id",
+    "SITE_URL": "https://qface.dogxi.me",
+    "VITE_QFACE_REPO_URL": "https://github.com/dogxii/QFace"
+  }
+}
+```
+
+需要在 Cloudflare Pages Production Secrets 中配置的加密变量：
 
 ```dotenv
-GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 COOKIE_SECRET=
-SITE_URL=https://qface.dogxi.me
-VITE_QFACE_REPO_URL=https://github.com/dogxii/QFace
 ```
 
 `COOKIE_SECRET` 建议使用 32 字节以上随机字符串。
