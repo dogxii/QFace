@@ -1,3 +1,5 @@
+import catalogJson from '../../../src/generated/questions.json'
+import type { Question, QuestionCatalog, QuestionDifficulty } from '../../../src/types/question'
 import { requireAuth } from '../../_lib/auth'
 import type { Env } from '../../_lib/types'
 
@@ -14,6 +16,38 @@ interface NoteRow {
   updated_at: string
 }
 
+const catalog = catalogJson as QuestionCatalog
+const questionById = new Map<string, Question>(
+  catalog.questions.map((question) => [question.sourceId, question]),
+)
+const difficultyLabels: Record<QuestionDifficulty, string> = {
+  1: '初级',
+  2: '中级',
+  3: '高级',
+}
+
+function noteTitle(sourceId: string) {
+  const question = questionById.get(sourceId)
+  return question?.title ?? sourceId
+}
+
+function noteMeta(sourceId: string) {
+  const question = questionById.get(sourceId)
+  if (!question) return [`题目 ID：${sourceId}`]
+
+  return [
+    `题号：${sourceId}`,
+    `岗位：${question.category}`,
+    `模块：${question.module}`,
+    `难度：${difficultyLabels[question.difficulty]}`,
+  ]
+}
+
+function draftStatus(content: string, publicCommentId: string | null) {
+  if (publicCommentId) return '已公开'
+  return content.trim() ? '私密草稿' : '未填写'
+}
+
 function markdownExport(notes: NoteRow[]) {
   const exportedAt = new Date().toLocaleString('zh-CN', { hour12: false })
   const sections = notes.map((note) => {
@@ -21,11 +55,12 @@ function markdownExport(notes: NoteRow[]) {
     const explain = note.explain_content.trim()
 
     return [
-      `## ${note.source_id}`,
+      `## ${noteTitle(note.source_id)}`,
       '',
+      ...noteMeta(note.source_id).map((item) => `- ${item}`),
       `- 掌握：${note.mastery}/3`,
-      `- 回答：${note.answer_comment_id ? '已公开' : '私密草稿'}`,
-      `- 详解：${note.explain_comment_id ? '已公开' : '私密草稿'}`,
+      `- 回答：${draftStatus(answer, note.answer_comment_id)}`,
+      `- 详解：${draftStatus(explain, note.explain_comment_id)}`,
       `- 更新：${note.updated_at}`,
       '',
       answer ? ['### 回答', '', answer, ''].join('\n') : '',

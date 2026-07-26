@@ -10,6 +10,7 @@ import {
   searchExperienceQuestions,
 } from '@/lib/experience-links'
 import { copyMarkdownText, exportMarkdownImage, safeExportFilename } from '@/lib/export-image'
+import { useSession } from '@/lib/session'
 import type { ExperienceInput } from '@/types/experience'
 import { categories, type Question, type QuestionCategory } from '@/types/question'
 
@@ -71,6 +72,7 @@ export function ExperienceEditor({
   onChange: (value: ExperienceEditorValue) => void
   onSubmit: () => void | Promise<void>
 }) {
+  const { user } = useSession()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const codeEditorRef = useRef<ReactCodeMirrorRef | null>(null)
   const exportContentRef = useRef<HTMLDivElement>(null)
@@ -153,6 +155,9 @@ export function ExperienceEditor({
       await exportMarkdownImage({
         title: value.title.trim() || 'QFace 面经',
         meta: value.interviewDate ? `面试 ${value.interviewDate}` : '面经',
+        author: user
+          ? { name: user.name, login: user.login, avatarUrl: user.avatarUrl }
+          : undefined,
         html,
         filename: `qface-experience-${safeExportFilename(value.title || 'experience')}`,
       })

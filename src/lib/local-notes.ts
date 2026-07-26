@@ -1,5 +1,6 @@
 import { getQuestion } from '@/lib/questions'
 import type { PublicCommentKind } from '@/types/community'
+import type { QuestionDifficulty } from '@/types/question'
 
 export interface LocalNote {
   sourceId: string
@@ -21,6 +22,12 @@ export interface NotesExportFile {
 
 export const notesStorageKey = 'qface:notes:v1'
 export const notesChangedEvent = 'qface:notes-changed'
+
+const difficultyLabels: Record<QuestionDifficulty, string> = {
+  1: '初级',
+  2: '中级',
+  3: '高级',
+}
 
 type LocalNoteMap = Record<string, LocalNote>
 
@@ -219,7 +226,12 @@ export function exportNotesAsMarkdown() {
   const sections = getLocalNoteList().map(({ note, question }) => {
     const title = question?.title ?? note.sourceId
     const meta = question
-      ? [`岗位：${question.category}`, `模块：${question.module}`, `难度：${question.difficulty}`]
+      ? [
+          `题号：${note.sourceId}`,
+          `岗位：${question.category}`,
+          `模块：${question.module}`,
+          `难度：${difficultyLabels[question.difficulty]}`,
+        ]
       : [`题目 ID：${note.sourceId}`]
     const answer = note.answerContent.trim()
     const explain = note.explainContent.trim()

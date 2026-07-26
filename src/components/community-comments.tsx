@@ -843,6 +843,9 @@ function AnswerEditor({
       await exportMarkdownImage({
         title: question?.title ?? 'QFace 作答',
         meta: activeLabel,
+        author: user
+          ? { name: user.name, login: user.login, avatarUrl: user.avatarUrl }
+          : undefined,
         html,
         filename: `qface-${safeExportFilename(question?.title ?? sourceId)}-${activeKind}`,
       })

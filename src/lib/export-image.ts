@@ -1,10 +1,24 @@
 import { downloadBlobFile, exportDate } from '@/lib/download'
 
+interface MarkdownImageAuthor {
+  name?: string | null
+  login?: string | null
+  avatarUrl?: string | null
+}
+
 interface MarkdownImageOptions {
   title: string
   meta?: string
+  author?: MarkdownImageAuthor
   html: string
   filename: string
+}
+
+interface ResolvedMarkdownImageAuthor {
+  name: string
+  login: string
+  initial: string
+  avatarDataUrl: string | null
 }
 
 function escapeHtml(value: string) {
@@ -17,6 +31,49 @@ function escapeHtml(value: string) {
 
 function cssVar(name: string, fallback: string) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
+}
+
+function firstInitial(value: string) {
+  return Array.from(value.trim())[0]?.toUpperCase() || 'Q'
+}
+
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error ?? new Error('头像读取失败'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function avatarToDataUrl(avatarUrl?: string | null) {
+  const url = avatarUrl?.trim()
+  if (!url) return null
+
+  try {
+    const response = await fetch(url, { credentials: 'omit', mode: 'cors' })
+    if (!response.ok) return null
+
+    return await readBlobAsDataUrl(await response.blob())
+  } catch {
+    return null
+  }
+}
+
+async function resolveAuthor(author?: MarkdownImageAuthor) {
+  const name = author?.name?.trim() || ''
+  const login = author?.login?.trim().replace(/^@/, '') || ''
+  const displayName = name || (login ? `@${login}` : '')
+
+  if (!displayName) return undefined
+
+  return {
+    name: displayName,
+    login,
+    initial: firstInitial(name || login),
+    avatarDataUrl: await avatarToDataUrl(author?.avatarUrl),
+  } satisfies ResolvedMarkdownImageAuthor
 }
 
 function exportCss() {
@@ -33,6 +90,14 @@ function exportCss() {
   const codeBg = cssVar('--code-bg', '#f6f8fa')
   const codeText = cssVar('--code-text', '#24292f')
   const codeLine = cssVar('--code-line', '#d8dee4')
+  const codeComment = cssVar('--code-comment', '#6a737d')
+  const codeKeyword = cssVar('--code-keyword', '#d73a49')
+  const codeNumber = cssVar('--code-number', '#005cc5')
+  const codeString = cssVar('--code-string', '#032f62')
+  const codeTitle = cssVar('--code-title', '#6f42c1')
+  const codeType = cssVar('--code-type', '#e36209')
+  const codeTag = cssVar('--code-tag', '#22863a')
+  const codeMeta = cssVar('--code-meta', '#6a737d')
   const readingSize = cssVar('--reading-font-size', '15px')
   const readingLineHeight = cssVar('--reading-line-height', '1.86')
   const readingCodeSize = cssVar('--reading-code-font-size', '13px')
@@ -42,11 +107,22 @@ function exportCss() {
     * { box-sizing: border-box; }
     .markdown-export-card {
       width: 760px;
-      padding: 34px 38px 30px;
+      padding: 32px 38px 30px;
       color: ${cell};
       background: ${background};
       font-family: ${fontFamily};
       -webkit-font-smoothing: antialiased;
+    }
+    .markdown-export-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 22px;
+      margin: 0 0 22px;
+    }
+    .markdown-export-heading {
+      min-width: 0;
+      flex: 1 1 auto;
     }
     .markdown-export-meta {
       margin: 0 0 8px;
@@ -56,11 +132,66 @@ function exportCss() {
       line-height: 1.5;
     }
     .markdown-export-title {
-      margin: 0 0 22px;
+      margin: 0;
       color: ${ink};
       font-size: 24px;
       font-weight: 760;
       line-height: 1.42;
+    }
+    .markdown-export-author {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      max-width: 230px;
+      padding-top: 2px;
+      color: ${heading};
+    }
+    .markdown-export-avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      overflow: hidden;
+      border-radius: 999px;
+      color: ${muted};
+      background: ${surface2};
+      box-shadow: inset 0 0 0 1px ${line};
+      font-size: 12px;
+      font-weight: 760;
+      line-height: 1;
+    }
+    .markdown-export-avatar img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .markdown-export-author-text {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 1px;
+      line-height: 1.25;
+    }
+    .markdown-export-author-text strong,
+    .markdown-export-author-text small {
+      max-width: 178px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .markdown-export-author-text strong {
+      color: ${ink};
+      font-size: 13px;
+      font-weight: 720;
+    }
+    .markdown-export-author-text small {
+      color: ${heading};
+      font-size: 11.5px;
+      font-weight: 620;
     }
     .markdown-content {
       min-width: 0;
@@ -150,6 +281,57 @@ function exportCss() {
       line-height: 1.68;
       white-space: pre-wrap;
     }
+    .markdown-content .hljs-comment,
+    .markdown-content .hljs-quote {
+      color: ${codeComment};
+    }
+    .markdown-content .hljs-keyword,
+    .markdown-content .hljs-selector-tag,
+    .markdown-content .hljs-subst {
+      color: ${codeKeyword};
+    }
+    .markdown-content .hljs-number,
+    .markdown-content .hljs-literal,
+    .markdown-content .hljs-variable,
+    .markdown-content .hljs-template-variable,
+    .markdown-content .hljs-tag .hljs-attr {
+      color: ${codeNumber};
+    }
+    .markdown-content .hljs-string,
+    .markdown-content .hljs-doctag,
+    .markdown-content .hljs-regexp,
+    .markdown-content .hljs-link {
+      color: ${codeString};
+    }
+    .markdown-content .hljs-title,
+    .markdown-content .hljs-section,
+    .markdown-content .hljs-selector-id,
+    .markdown-content .hljs-built_in,
+    .markdown-content .hljs-builtin-name {
+      color: ${codeTitle};
+    }
+    .markdown-content .hljs-type,
+    .markdown-content .hljs-class .hljs-title {
+      color: ${codeType};
+    }
+    .markdown-content .hljs-tag,
+    .markdown-content .hljs-name,
+    .markdown-content .hljs-attribute {
+      color: ${codeTag};
+    }
+    .markdown-content .hljs-symbol,
+    .markdown-content .hljs-bullet {
+      color: ${codeNumber};
+    }
+    .markdown-content .hljs-meta {
+      color: ${codeMeta};
+    }
+    .markdown-content .hljs-emphasis {
+      font-style: italic;
+    }
+    .markdown-content .hljs-strong {
+      font-weight: 700;
+    }
     .markdown-export-footer {
       margin-top: 28px;
       padding-top: 14px;
@@ -161,14 +343,44 @@ function exportCss() {
   `
 }
 
-function createExportMarkup({ title, meta, html }: MarkdownImageOptions) {
+function authorMarkup(author?: ResolvedMarkdownImageAuthor) {
+  if (!author) return ''
+
+  const showLogin = author.login && `@${author.login}` !== author.name
+  const avatar = author.avatarDataUrl
+    ? `<img src="${escapeHtml(author.avatarDataUrl)}" alt="" />`
+    : escapeHtml(author.initial)
+
+  return `
+    <div class="markdown-export-author">
+      <span class="markdown-export-avatar">${avatar}</span>
+      <span class="markdown-export-author-text">
+        <strong>${escapeHtml(author.name)}</strong>
+        ${showLogin ? `<small>@${escapeHtml(author.login)}</small>` : ''}
+      </span>
+    </div>
+  `
+}
+
+function createExportMarkup(
+  { title, meta, html }: MarkdownImageOptions,
+  author?: ResolvedMarkdownImageAuthor,
+) {
+  const footerItems = ['QFace', exportDate()]
+  const footer = footerItems.map(escapeHtml).join(' · ')
+
   return `
     <style>${exportCss()}</style>
     <article class="markdown-export-card">
-      ${meta ? `<p class="markdown-export-meta">${escapeHtml(meta)}</p>` : ''}
-      <h1 class="markdown-export-title">${escapeHtml(title)}</h1>
+      <header class="markdown-export-header">
+        <div class="markdown-export-heading">
+          ${meta ? `<p class="markdown-export-meta">${escapeHtml(meta)}</p>` : ''}
+          <h1 class="markdown-export-title">${escapeHtml(title)}</h1>
+        </div>
+        ${authorMarkup(author)}
+      </header>
       <div class="markdown-content">${html}</div>
-      <div class="markdown-export-footer">QFace · ${exportDate()}</div>
+      <div class="markdown-export-footer">${footer}</div>
     </article>
   `
 }
@@ -198,7 +410,8 @@ export async function copyMarkdownText(content: string) {
 }
 
 export async function exportMarkdownImage(options: MarkdownImageOptions) {
-  const markup = createExportMarkup(options)
+  const author = await resolveAuthor(options.author)
+  const markup = createExportMarkup(options, author)
   const measure = document.createElement('div')
 
   measure.style.cssText =
