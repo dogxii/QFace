@@ -13,6 +13,7 @@ import type { ChangeEvent } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { githubLoginUrl, saveRemoteNote } from '@/lib/community-api'
 import { downloadTextFile, exportDate } from '@/lib/download'
+import { getExperiences } from '@/lib/experiences-api'
 import { bookmarksChangedEvent, getLocalBookmarkCount } from '@/lib/local-bookmarks'
 import {
   exportNotesAsJson,
@@ -99,6 +100,7 @@ export function AccountMenu() {
   const [themeOpen, setThemeOpen] = useState(false)
   const [localNotes, setLocalNotes] = useState(() => readLocalNotes())
   const [bookmarkCount, setBookmarkCount] = useState(() => getLocalBookmarkCount())
+  const [experienceCount, setExperienceCount] = useState(0)
   const [progressScope, setProgressScope] = useState<AccountProgressScope>(() =>
     readAccountProgressScope(),
   )
@@ -124,6 +126,29 @@ export function AccountMenu() {
   useEffect(() => {
     if (!open) setThemeOpen(false)
   }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    if (!user && !import.meta.env.DEV) {
+      setExperienceCount(0)
+      return
+    }
+
+    let cancelled = false
+
+    getExperiences({ mine: true })
+      .then(({ experiences }) => {
+        if (!cancelled) setExperienceCount(experiences.length)
+      })
+      .catch(() => {
+        if (!cancelled) setExperienceCount(0)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, user])
 
   useEffect(() => {
     if (!open) return
@@ -300,6 +325,7 @@ export function AccountMenu() {
             </div>
             <div className="account-progress__meta">
               <span>{doneSourceIds.size} 题做过</span>
+              <span>{experienceCount} 面经</span>
               <span>{bookmarkCount} 收藏</span>
             </div>
             <div className="account-progress__filters">

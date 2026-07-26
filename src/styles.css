@@ -659,7 +659,7 @@ select::-ms-expand {
 }
 
 .question-table {
-  --question-grid: 38px minmax(0, 1fr) 76px 96px 74px;
+  --question-grid: 38px minmax(0, 1fr) 76px 56px 96px 64px;
   overflow: hidden;
   background: transparent;
 }
@@ -843,6 +843,26 @@ select::-ms-expand {
   text-shadow: 0 4px 14px rgba(245, 158, 11, 0.18);
 }
 
+.question-discussion-count {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 28px;
+  align-items: center;
+  color: var(--cell);
+  font-size: 12px;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.question-discussion-count:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--underline);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
 .answer-state {
   display: inline-flex;
   min-height: 28px;
@@ -859,6 +879,16 @@ select::-ms-expand {
 }
 
 .answer-state:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.answer-state[data-answered="true"] {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.answer-state[data-answered="true"]:hover {
   color: var(--blue);
   background: var(--blue-soft);
 }
@@ -1507,6 +1537,54 @@ select::-ms-expand {
   color: #f8fbff;
   /* biome-ignore lint/complexity/noImportantStyles: githubDark also marks CodeMirror selection as important, so this scoped override keeps selected text visible. */
   background-color: rgba(88, 166, 255, 0.48) !important;
+}
+
+.markdown-code-editor--light {
+  background: #fbfcff;
+}
+
+.markdown-code-editor--light .cm-editor {
+  color: #242831;
+  background: #fbfcff;
+}
+
+.markdown-code-editor--light .cm-gutters {
+  color: #9aa3b2;
+  background: #f4f6fa;
+  border-right-color: #dde3ee;
+}
+
+.markdown-code-editor--light .cm-activeLine {
+  background: #eef4ff;
+}
+
+.markdown-code-editor--light .cm-activeLineGutter {
+  color: #4b5565;
+  background: #e9eff8;
+}
+
+.markdown-code-editor--light .cm-cursor {
+  border-left-color: #2563eb;
+}
+
+.markdown-code-editor--light .cm-placeholder {
+  color: #9aa3b2;
+}
+
+.markdown-code-editor--light .cm-editor .cm-scroller .cm-selectionLayer .cm-selectionBackground,
+.markdown-code-editor--light
+  .cm-editor.cm-focused
+  .cm-scroller
+  .cm-selectionLayer
+  .cm-selectionBackground {
+  /* biome-ignore lint/complexity/noImportantStyles: githubLight marks CodeMirror selection as important, so this scoped override keeps selected text visible. */
+  background-color: rgba(37, 99, 235, 0.22) !important;
+}
+
+.markdown-code-editor--light .cm-content ::selection {
+  color: #111827;
+  /* biome-ignore lint/complexity/noImportantStyles: githubLight marks CodeMirror selection as important, so this scoped override keeps selected text visible. */
+  background-color: rgba(37, 99, 235, 0.24) !important;
 }
 
 .answer-editor__footer {
@@ -3242,7 +3320,7 @@ select::-ms-expand {
 
   .question-table__header,
   .question-row {
-    min-width: 620px;
+    min-width: 700px;
   }
 
   .question-page {

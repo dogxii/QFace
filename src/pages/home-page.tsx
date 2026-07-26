@@ -4,15 +4,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { DifficultyBadge } from '@/components/difficulty-badge'
 import { Pagination } from '@/components/pagination'
 import { MasteryStars } from '@/components/progress'
-import { getCommentCounts } from '@/lib/community-api'
+import { getQuestionStats, type QuestionStatsMap } from '@/lib/community-api'
+import { notesChangedEvent, readLocalNotes } from '@/lib/local-notes'
 import { type MasteryMap, useMastery } from '@/lib/mastery'
 import { filterQuestions, getModules, questionCatalog } from '@/lib/questions'
 import { homeRoute } from '@/router'
 import type { Question } from '@/types/question'
 import { categories, type QuestionDifficulty } from '@/types/question'
 
-type SortField = 'difficulty' | 'mastery'
-type QuestionSort = 'default' | 'difficulty' | '-difficulty' | 'mastery' | '-mastery'
+type SortField = 'difficulty' | 'discussion' | 'mastery'
+type QuestionSort =
+  | 'default'
+  | 'difficulty'
+  | '-difficulty'
+  | 'discussion'
+  | '-discussion'
+  | 'mastery'
+  | '-mastery'
 
 export interface HomeSearch {
   q?: string
@@ -36,11 +44,14 @@ const difficultyLabels: Record<QuestionDifficulty, string> = {
 
 const sortLabels: Record<SortField, string> = {
   difficulty: '难度',
+  discussion: '讨论',
   mastery: '掌握',
 }
 
 function normalizedSort(sort: string): QuestionSort {
-  if (['difficulty', '-difficulty', 'mastery', '-mastery'].includes(sort)) {
+  if (
+    ['difficulty', '-difficulty', 'discussion', '-discussion', 'mastery', '-mastery'].includes(sort)
+  ) {
     return sort as QuestionSort
   }
   return 'default'
@@ -53,7 +64,8 @@ function getSortField(sort: QuestionSort) {
 
 function nextSortFor(field: SortField, current: QuestionSort): QuestionSort {
   const currentField = getSortField(current)
-  if (currentField !== field) return field === 'difficulty' ? 'difficulty' : '-mastery'
+  if (currentField !== field)
+    return field === 'difficulty' ? 'difficulty' : (`-${field}` as QuestionSort)
   return current.startsWith('-') ? field : (`-${field}` as QuestionSort)
 }
 
@@ -63,7 +75,12 @@ function sortLabel(sort: QuestionSort) {
   return `${sortLabels[field]} ${sort.startsWith('-') ? '↓' : '↑'}`
 }
 
-function sortQuestions(questions: Question[], sort: QuestionSort, masteryMap: MasteryMap) {
+function sortQuestions(
+  questions: Question[],
+  sort: QuestionSort,
+  masteryMap: MasteryMap,
+  questionStats: QuestionStatsMap,
+) {
   if (sort === 'default') return questions
 
   const order = new Map(questions.map((question, index) => [question.sourceId, index]))
@@ -73,6 +90,10 @@ function sortQuestions(questions: Question[], sort: QuestionSort, masteryMap: Ma
   return [...questions].sort((left, right) => {
     let value = 0
     if (field === 'difficulty') value = left.difficulty - right.difficulty
+    if (field === 'discussion')
+      value =
+        (questionStats[left.sourceId]?.commentCount ?? 0) -
+        (questionStats[right.sourceId]?.commentCount ?? 0)
     if (field === 'mastery')
       value = (masteryMap[left.sourceId] ?? 0) - (masteryMap[right.sourceId] ?? 0)
     if (value !== 0) return descending ? -value : value
@@ -96,6 +117,17 @@ function cleanSearch(search: Partial<HomeSearch>) {
     sort,
     page: search.page && search.page > 0 ? search.page : 1,
   }
+}
+
+function hasUsefulCleanSearch(search: ReturnType<typeof cleanSearch>) {
+  return Boolean(
+    search.q ||
+      search.category ||
+      search.module ||
+      search.difficulty ||
+      search.sort !== 'default' ||
+      search.page > 1,
+  )
 }
 
 function toCache(search: ReturnType<typeof cleanSearch>) {
@@ -136,12 +168,25 @@ export function HomePage() {
   const search = homeRoute.useSearch()
   const navigate = useNavigate({ from: '/' })
   const { masteryMap, setMastery } = useMastery()
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+  const [questionStats, setQuestionStats] = useState<QuestionStatsMap>({})
+  const [localNotes, setLocalNotes] = useState(() => readLocalNotes())
   const clean = cleanSearch(search)
   const modules = getModules(clean.category)
 
   useEffect(() => {
     document.title = '问题 · QFace'
+  }, [])
+
+  useEffect(() => {
+    const updateLocalNotes = () => setLocalNotes(readLocalNotes())
+
+    window.addEventListener(notesChangedEvent, updateLocalNotes)
+    window.addEventListener('storage', updateLocalNotes)
+
+    return () => {
+      window.removeEventListener(notesChangedEvent, updateLocalNotes)
+      window.removeEventListener('storage', updateLocalNotes)
+    }
   }, [])
 
   useEffect(() => {
@@ -151,16 +196,7 @@ export function HomePage() {
       return
     }
 
-    const hasUsefulSearch = Boolean(
-      clean.q ||
-        clean.category ||
-        clean.module ||
-        clean.difficulty ||
-        clean.sort !== 'default' ||
-        clean.page > 1,
-    )
-
-    if (hasUsefulSearch) {
+    if (hasUsefulCleanSearch(clean)) {
       localStorage.setItem(memoryKey, toCache(clean))
       return
     }
@@ -185,8 +221,8 @@ export function HomePage() {
     [clean.category, clean.difficulty, clean.module, clean.q],
   )
   const sortedQuestions = useMemo(
-    () => sortQuestions(filtered, clean.sort, masteryMap),
-    [clean.sort, filtered, masteryMap],
+    () => sortQuestions(filtered, clean.sort, masteryMap, questionStats),
+    [clean.sort, filtered, masteryMap, questionStats],
   )
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const page = Math.min(clean.page, pageCount)
@@ -196,22 +232,35 @@ export function HomePage() {
   )
 
   useEffect(() => {
-    getCommentCounts(pageQuestions.map((question) => question.sourceId))
-      .then((payload) => setCommentCounts(payload.counts))
-      .catch(() => setCommentCounts({}))
-  }, [pageQuestions])
+    let cancelled = false
+
+    getQuestionStats()
+      .then((payload) => {
+        if (!cancelled) setQuestionStats(payload.stats)
+      })
+      .catch(() => {
+        if (!cancelled) setQuestionStats({})
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const updateSearch = (changes: Partial<HomeSearch>) => {
-    navigate({
-      search: (previous) =>
-        toRouterSearch(
-          cleanSearch({
-            ...previous,
-            ...changes,
-            page: changes.page ?? 1,
-          }),
-        ),
+    const nextClean = cleanSearch({
+      ...clean,
+      ...changes,
+      page: changes.page ?? 1,
     })
+
+    if (hasUsefulCleanSearch(nextClean)) {
+      localStorage.setItem(memoryKey, toCache(nextClean))
+    } else {
+      localStorage.removeItem(memoryKey)
+    }
+
+    navigate({ search: toRouterSearch(nextClean) })
   }
 
   const activeFilterChips = [
@@ -349,43 +398,59 @@ export function HomePage() {
           <div className="question-table__header">
             <span className="question-table__head question-table__head--title">题目</span>
             <SortHead field="difficulty" label="难度" sort={clean.sort} onSort={updateSearch} />
+            <SortHead field="discussion" label="讨论" sort={clean.sort} onSort={updateSearch} />
             <SortHead field="mastery" label="掌握" sort={clean.sort} onSort={updateSearch} />
-            <span className="question-table__head question-table__head--action">操作</span>
+            <span className="question-table__head question-table__head--action">作答</span>
           </div>
 
           <div className="question-list">
             {pageQuestions.length ? (
-              pageQuestions.map((question, index) => (
-                <article className="question-row" key={question.sourceId}>
-                  <div className="question-row__index" aria-hidden="true">
-                    {String((page - 1) * pageSize + index + 1).padStart(2, '0')}
-                  </div>
-                  <div className="question-row__content">
+              pageQuestions.map((question, index) => {
+                const note = localNotes[question.sourceId]
+                const answered = Boolean(note?.answerContent.trim() || note?.explainContent.trim())
+                const commentCount = questionStats[question.sourceId]?.commentCount ?? 0
+
+                return (
+                  <article className="question-row" key={question.sourceId}>
+                    <div className="question-row__index" aria-hidden="true">
+                      {String((page - 1) * pageSize + index + 1).padStart(2, '0')}
+                    </div>
+                    <div className="question-row__content">
+                      <Link
+                        className="question-row__title"
+                        to="/q/$sourceId"
+                        params={{ sourceId: question.sourceId }}
+                      >
+                        {question.title}
+                      </Link>
+                    </div>
+                    <div className="question-row__difficulty">
+                      <DifficultyBadge difficulty={question.difficulty} />
+                    </div>
                     <Link
-                      className="question-row__title"
+                      className="question-discussion-count"
+                      to="/q/$sourceId"
+                      params={{ sourceId: question.sourceId }}
+                      aria-label={`${commentCount} 条讨论`}
+                    >
+                      {commentCount}
+                    </Link>
+                    <MasteryStars
+                      sourceId={question.sourceId}
+                      value={masteryMap[question.sourceId] ?? 0}
+                      onChange={setMastery}
+                    />
+                    <Link
+                      className="answer-state"
+                      data-answered={answered ? 'true' : undefined}
                       to="/q/$sourceId"
                       params={{ sourceId: question.sourceId }}
                     >
-                      {question.title}
+                      {answered ? '已答' : '未答'}
                     </Link>
-                  </div>
-                  <div className="question-row__difficulty">
-                    <DifficultyBadge difficulty={question.difficulty} />
-                  </div>
-                  <MasteryStars
-                    sourceId={question.sourceId}
-                    value={masteryMap[question.sourceId] ?? 0}
-                    onChange={setMastery}
-                  />
-                  <Link
-                    className="answer-state"
-                    to="/q/$sourceId"
-                    params={{ sourceId: question.sourceId }}
-                  >
-                    {commentCounts[question.sourceId] ?? 0} 讨论
-                  </Link>
-                </article>
-              ))
+                  </article>
+                )
+              })
             ) : (
               <div className="empty-list">
                 <strong>没有匹配的问题</strong>

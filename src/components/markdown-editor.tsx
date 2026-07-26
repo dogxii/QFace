@@ -1,7 +1,7 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { LanguageDescription } from '@codemirror/language'
 import { EditorView } from '@codemirror/view'
-import { githubDark } from '@uiw/codemirror-theme-github'
+import { githubDark, githubLight } from '@uiw/codemirror-theme-github'
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { type RefObject, useMemo } from 'react'
 
@@ -53,18 +53,23 @@ const codeLanguages = [
   }),
 ]
 
+export type MarkdownEditorTone = 'dark' | 'light'
+
 export default function MarkdownEditor({
   value,
   onChange,
   placeholder,
   editorRef,
+  tone = 'dark',
 }: {
   value: string
   onChange: (value: string) => void
   placeholder: string
   editorRef: RefObject<ReactCodeMirrorRef | null>
+  tone?: MarkdownEditorTone
 }) {
   const extensions = useMemo(() => [markdown({ codeLanguages }), EditorView.lineWrapping], [])
+  const theme = tone === 'light' ? githubLight : githubDark
 
   return (
     <CodeMirror
@@ -72,13 +77,13 @@ export default function MarkdownEditor({
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      theme={githubDark}
+      theme={theme}
       extensions={extensions}
       basicSetup={{
         foldGutter: false,
         highlightActiveLine: true,
       }}
-      className="markdown-code-editor"
+      className={`markdown-code-editor markdown-code-editor--${tone}`}
     />
   )
 }

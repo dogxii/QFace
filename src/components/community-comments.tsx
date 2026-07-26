@@ -9,6 +9,8 @@ import {
   MessageCircle,
   MessageSquareText,
   Minimize2,
+  Moon,
+  Sun,
   Trash2,
 } from 'lucide-react'
 import {
@@ -435,12 +437,48 @@ const draftKindLabels: Record<PublicCommentKind, string> = {
 }
 
 const answerEditorCollapsedKey = 'qface:answer-editor-collapsed:v1'
+const answerEditorToneKey = 'qface:answer-editor-tone:v1'
+const answerEditorKindKey = 'qface:answer-editor-kind:v1'
+
+type AnswerEditorTone = 'dark' | 'light'
 
 function readAnswerEditorCollapsed() {
   try {
     return window.localStorage.getItem(answerEditorCollapsedKey) === '1'
   } catch {
     return false
+  }
+}
+
+function readAnswerEditorTone(): AnswerEditorTone {
+  try {
+    return window.localStorage.getItem(answerEditorToneKey) === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+function writeAnswerEditorTone(tone: AnswerEditorTone) {
+  try {
+    window.localStorage.setItem(answerEditorToneKey, tone)
+  } catch {
+    // 忽略隐私模式或存储不可用场景，编辑区亮暗偏好只是本地体验。
+  }
+}
+
+function readAnswerEditorKind(): PublicCommentKind {
+  try {
+    return window.localStorage.getItem(answerEditorKindKey) === 'explain' ? 'explain' : 'answer'
+  } catch {
+    return 'answer'
+  }
+}
+
+function writeAnswerEditorKind(kind: PublicCommentKind) {
+  try {
+    window.localStorage.setItem(answerEditorKindKey, kind)
+  } catch {
+    // 忽略隐私模式或存储不可用场景，作答类型只是本地偏好。
   }
 }
 
@@ -546,10 +584,11 @@ function AnswerEditor({
   const exportContentRef = useRef<HTMLDivElement>(null)
   const modeScrollYRef = useRef<number | null>(null)
   const [drafts, setDrafts] = useState<EditorDrafts>(() => createEmptyDrafts())
-  const [activeKind, setActiveKind] = useState<PublicCommentKind>('answer')
+  const [activeKind, setActiveKind] = useState<PublicCommentKind>(() => readAnswerEditorKind())
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
   const [fullscreen, setFullscreen] = useState(false)
   const [collapsed, setCollapsedState] = useState(() => readAnswerEditorCollapsed())
+  const [editorTone, setEditorTone] = useState<AnswerEditorTone>(() => readAnswerEditorTone())
   const [pendingCursor, setPendingCursor] = useState<number | null>(null)
   const [syncError, setSyncError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
@@ -587,6 +626,16 @@ function AnswerEditor({
     writeAnswerEditorCollapsed(next)
     if (next) setFullscreen(false)
   }
+  const toggleEditorTone = () => {
+    const nextTone = editorTone === 'dark' ? 'light' : 'dark'
+    setEditorTone(nextTone)
+    writeAnswerEditorTone(nextTone)
+  }
+  const selectActiveKind = (kind: PublicCommentKind) => {
+    setActiveKind(kind)
+    writeAnswerEditorKind(kind)
+    if (!drafts[kind].content.trim()) setMode('edit')
+  }
 
   useEffect(() => {
     draftsRef.current = drafts
@@ -602,7 +651,6 @@ function AnswerEditor({
   useEffect(() => {
     const nextDrafts = mergeLocalAndRemoteDrafts(sourceId, null)
     setDrafts(nextDrafts)
-    setActiveKind('answer')
     setMode('edit')
     setFullscreen(false)
     setSyncError('')
@@ -875,10 +923,7 @@ function AnswerEditor({
               <button
                 type="button"
                 data-active={activeKind === item.value ? 'true' : undefined}
-                onClick={() => {
-                  setActiveKind(item.value)
-                  if (!drafts[item.value].content.trim()) setMode('edit')
-                }}
+                onClick={() => selectActiveKind(item.value)}
                 key={item.value}
               >
                 {item.label}
@@ -932,6 +977,19 @@ function AnswerEditor({
             title="导出图片"
           >
             <ImageDown size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="answer-editor__toolbar-action"
+            onClick={toggleEditorTone}
+            aria-label={editorTone === 'dark' ? '切换亮色编辑区' : '切换深色编辑区'}
+            title={editorTone === 'dark' ? '亮色编辑区' : '深色编辑区'}
+          >
+            {editorTone === 'dark' ? (
+              <Sun size={14} aria-hidden="true" />
+            ) : (
+              <Moon size={14} aria-hidden="true" />
+            )}
           </button>
           <button
             type="button"
@@ -995,6 +1053,7 @@ function AnswerEditor({
                   onChange={updateContent}
                   placeholder={placeholder}
                   editorRef={codeEditorRef}
+                  tone={editorTone}
                 />
               </Suspense>
             </div>
@@ -1027,6 +1086,7 @@ function AnswerEditor({
               onChange={updateContent}
               placeholder={placeholder}
               editorRef={codeEditorRef}
+              tone={editorTone}
             />
           </Suspense>
         )}

@@ -65,6 +65,52 @@ function isCommentsPayload(payload: unknown): payload is { comments: CommunityCo
   )
 }
 
+export interface QuestionStats {
+  sourceId: string
+  commentCount: number
+  answerCount: number
+  explainCount: number
+  discussionCount: number
+  lastCommentAt: string | null
+}
+
+export type QuestionStatsMap = Record<string, QuestionStats>
+
+function isQuestionStatsPayload(payload: unknown): payload is { stats: QuestionStatsMap } {
+  return Boolean(payload && typeof payload === 'object' && 'stats' in payload)
+}
+
+function createDevQuestionStats(): { stats: QuestionStatsMap } {
+  return {
+    stats: {
+      'agent-001': {
+        sourceId: 'agent-001',
+        commentCount: 6,
+        answerCount: 1,
+        explainCount: 1,
+        discussionCount: 4,
+        lastCommentAt: '2026-07-23T06:41:00.000Z',
+      },
+      'js-001': {
+        sourceId: 'js-001',
+        commentCount: 4,
+        answerCount: 1,
+        explainCount: 1,
+        discussionCount: 2,
+        lastCommentAt: '2026-07-22T10:20:00.000Z',
+      },
+      'code-001': {
+        sourceId: 'code-001',
+        commentCount: 2,
+        answerCount: 1,
+        explainCount: 0,
+        discussionCount: 1,
+        lastCommentAt: '2026-07-21T09:00:00.000Z',
+      },
+    },
+  }
+}
+
 function createDevMockComments(sourceId: string): { comments: CommunityComment[] } {
   const user = {
     id: 'dev-user-dogxi',
@@ -325,11 +371,16 @@ export function acceptComment(id: string, accepted: boolean) {
   )
 }
 
-export function getCommentCounts(sourceIds: string[]) {
-  if (!sourceIds.length) return Promise.resolve({ counts: {} as Record<string, number> })
-  const params = new URLSearchParams({ sourceIds: sourceIds.join(',') })
-
-  return apiGet<{ counts: Record<string, number> }>(`/api/comments/counts?${params.toString()}`)
+export async function getQuestionStats() {
+  try {
+    const payload = await apiGet<{ stats: QuestionStatsMap }>('/api/questions/stats')
+    if (isQuestionStatsPayload(payload)) return payload
+    if (import.meta.env.DEV) return createDevQuestionStats()
+    throw new ApiError('题目统计数据格式错误', 502)
+  } catch (error) {
+    if (import.meta.env.DEV) return createDevQuestionStats()
+    throw error
+  }
 }
 
 export function getRemoteNote(sourceId: string) {
