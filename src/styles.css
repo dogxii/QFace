@@ -693,13 +693,13 @@ select::-ms-expand {
   grid-column: 1 / 3;
 }
 
-.question-table__head--action {
-  justify-content: flex-end;
-}
-
 .question-table__sort {
   width: fit-content;
   padding: 0;
+}
+
+.question-table__sort--end {
+  justify-self: end;
 }
 
 .question-table__sort:hover,

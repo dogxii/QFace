@@ -75,9 +75,56 @@ export interface QuestionStats {
 }
 
 export type QuestionStatsMap = Record<string, QuestionStats>
+interface QuestionStatsPayload {
+  stats: QuestionStatsMap
+}
+
+const questionStatsCacheKey = 'qface:question-stats:v1'
+const questionStatsCacheTtl = 5 * 60 * 1000
 
 function isQuestionStatsPayload(payload: unknown): payload is { stats: QuestionStatsMap } {
   return Boolean(payload && typeof payload === 'object' && 'stats' in payload)
+}
+
+function readQuestionStatsCache() {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const cached = JSON.parse(window.sessionStorage.getItem(questionStatsCacheKey) ?? 'null') as {
+      cachedAt?: number
+      payload?: unknown
+    } | null
+
+    if (!cached?.cachedAt || !isQuestionStatsPayload(cached.payload)) return null
+    if (Date.now() - cached.cachedAt > questionStatsCacheTtl) return null
+
+    return cached.payload
+  } catch {
+    return null
+  }
+}
+
+function writeQuestionStatsCache(payload: QuestionStatsPayload) {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.setItem(
+      questionStatsCacheKey,
+      JSON.stringify({ cachedAt: Date.now(), payload }),
+    )
+  } catch {
+    // Ignore storage failures; the live API response is still returned.
+  }
+}
+
+function clearQuestionStatsCache() {
+  if (typeof window === 'undefined') return
+
+  try {
+    window.sessionStorage.removeItem(questionStatsCacheKey)
+  } catch {
+    // Ignore storage failures.
+  }
 }
 
 function createDevQuestionStats(): { stats: QuestionStatsMap } {
@@ -338,21 +385,25 @@ export async function getComments(sourceId: string, kind = 'all') {
   }
 }
 
-export function createComment(input: {
+export async function createComment(input: {
   sourceId: string
   parentId?: string | null
   kind?: CommentKind
   content: string
 }) {
-  return apiSend<{ comment: import('@/types/community').CommunityComment }>(
+  const payload = await apiSend<{ comment: import('@/types/community').CommunityComment }>(
     '/api/comments',
     'POST',
     input,
   )
+  clearQuestionStatsCache()
+  return payload
 }
 
-export function deleteComment(id: string) {
-  return apiSend<{ ok: true }>(`/api/comments/${id}`, 'DELETE')
+export async function deleteComment(id: string) {
+  const payload = await apiSend<{ ok: true }>(`/api/comments/${id}`, 'DELETE')
+  clearQuestionStatsCache()
+  return payload
 }
 
 export function voteComment(id: string, value: -1 | 0 | 1) {
@@ -372,9 +423,17 @@ export function acceptComment(id: string, accepted: boolean) {
 }
 
 export async function getQuestionStats() {
+  const cached = readQuestionStatsCache()
+  if (cached) return cached
+
   try {
-    const payload = await apiGet<{ stats: QuestionStatsMap }>('/api/questions/stats')
-    if (isQuestionStatsPayload(payload)) return payload
+    const payload = await parseResponse<QuestionStatsPayload>(
+      await fetch('/api/questions/stats', { credentials: 'omit' }),
+    )
+    if (isQuestionStatsPayload(payload)) {
+      writeQuestionStatsCache(payload)
+      return payload
+    }
     if (import.meta.env.DEV) return createDevQuestionStats()
     throw new ApiError('题目统计数据格式错误', 502)
   } catch (error) {

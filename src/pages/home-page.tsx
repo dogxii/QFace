@@ -12,7 +12,7 @@ import { homeRoute } from '@/router'
 import type { Question } from '@/types/question'
 import { categories, type QuestionDifficulty } from '@/types/question'
 
-type SortField = 'difficulty' | 'discussion' | 'mastery'
+type SortField = 'difficulty' | 'discussion' | 'mastery' | 'answered'
 type QuestionSort =
   | 'default'
   | 'difficulty'
@@ -21,6 +21,8 @@ type QuestionSort =
   | '-discussion'
   | 'mastery'
   | '-mastery'
+  | 'answered'
+  | '-answered'
 
 export interface HomeSearch {
   q?: string
@@ -46,11 +48,21 @@ const sortLabels: Record<SortField, string> = {
   difficulty: '难度',
   discussion: '讨论',
   mastery: '掌握',
+  answered: '作答',
 }
 
 function normalizedSort(sort: string): QuestionSort {
   if (
-    ['difficulty', '-difficulty', 'discussion', '-discussion', 'mastery', '-mastery'].includes(sort)
+    [
+      'difficulty',
+      '-difficulty',
+      'discussion',
+      '-discussion',
+      'mastery',
+      '-mastery',
+      'answered',
+      '-answered',
+    ].includes(sort)
   ) {
     return sort as QuestionSort
   }
@@ -80,6 +92,7 @@ function sortQuestions(
   sort: QuestionSort,
   masteryMap: MasteryMap,
   questionStats: QuestionStatsMap,
+  answeredSourceIds: Set<string>,
 ) {
   if (sort === 'default') return questions
 
@@ -96,6 +109,9 @@ function sortQuestions(
         (questionStats[right.sourceId]?.commentCount ?? 0)
     if (field === 'mastery')
       value = (masteryMap[left.sourceId] ?? 0) - (masteryMap[right.sourceId] ?? 0)
+    if (field === 'answered')
+      value =
+        Number(answeredSourceIds.has(left.sourceId)) - Number(answeredSourceIds.has(right.sourceId))
     if (value !== 0) return descending ? -value : value
     return (order.get(left.sourceId) ?? 0) - (order.get(right.sourceId) ?? 0)
   })
@@ -220,9 +236,18 @@ export function HomePage() {
       }),
     [clean.category, clean.difficulty, clean.module, clean.q],
   )
+  const answeredSourceIds = useMemo(
+    () =>
+      new Set(
+        Object.entries(localNotes)
+          .filter(([, note]) => note.answerContent.trim() || note.explainContent.trim())
+          .map(([sourceId]) => sourceId),
+      ),
+    [localNotes],
+  )
   const sortedQuestions = useMemo(
-    () => sortQuestions(filtered, clean.sort, masteryMap, questionStats),
-    [clean.sort, filtered, masteryMap, questionStats],
+    () => sortQuestions(filtered, clean.sort, masteryMap, questionStats, answeredSourceIds),
+    [answeredSourceIds, clean.sort, filtered, masteryMap, questionStats],
   )
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const page = Math.min(clean.page, pageCount)
@@ -400,14 +425,19 @@ export function HomePage() {
             <SortHead field="difficulty" label="难度" sort={clean.sort} onSort={updateSearch} />
             <SortHead field="discussion" label="讨论" sort={clean.sort} onSort={updateSearch} />
             <SortHead field="mastery" label="掌握" sort={clean.sort} onSort={updateSearch} />
-            <span className="question-table__head question-table__head--action">作答</span>
+            <SortHead
+              field="answered"
+              label="作答"
+              sort={clean.sort}
+              onSort={updateSearch}
+              alignEnd
+            />
           </div>
 
           <div className="question-list">
             {pageQuestions.length ? (
               pageQuestions.map((question, index) => {
-                const note = localNotes[question.sourceId]
-                const answered = Boolean(note?.answerContent.trim() || note?.explainContent.trim())
+                const answered = answeredSourceIds.has(question.sourceId)
                 const commentCount = questionStats[question.sourceId]?.commentCount ?? 0
 
                 return (
@@ -474,18 +504,20 @@ function SortHead({
   label,
   sort,
   onSort,
+  alignEnd,
 }: {
   field: SortField
   label: string
   sort: QuestionSort
   onSort: (changes: Partial<HomeSearch>) => void
+  alignEnd?: boolean
 }) {
   const active = getSortField(sort) === field
   const nextSort = nextSortFor(field, sort)
 
   return (
     <button
-      className="question-table__head question-table__sort"
+      className={`question-table__head question-table__sort${alignEnd ? ' question-table__sort--end' : ''}`}
       type="button"
       onClick={() => onSort({ sort: nextSort, page: 1 })}
       data-active={active ? 'true' : undefined}
