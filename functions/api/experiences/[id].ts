@@ -1,5 +1,6 @@
 import { canModerate, getAuth, requireAuth } from '../../_lib/auth'
 import {
+  canViewExperience,
   cleanExperienceLinks,
   type ExperienceRow,
   experienceSelectSql,
@@ -10,12 +11,18 @@ import {
 } from '../../_lib/experiences'
 import { assertSameOrigin, json, readJson } from '../../_lib/http'
 import type { Env } from '../../_lib/types'
-import { cleanContent, cleanOptionalDate, cleanTitle } from '../../_lib/validators'
+import {
+  cleanContent,
+  cleanExperienceVisibility,
+  cleanOptionalDate,
+  cleanTitle,
+} from '../../_lib/validators'
 
 interface ExperienceBody {
   title?: string
   interviewDate?: string
   content?: string
+  visibility?: string
   links?: unknown
 }
 
@@ -28,7 +35,7 @@ export const onRequestGet: PagesFunction<Env, 'id'> = async ({ request, env, par
   const id = getId(params)
   const row = await getExperience(env, id, auth?.user.id ?? null)
 
-  if (row?.status !== 'visible') {
+  if (!row || !canViewExperience(row, auth)) {
     return json({ error: 'Experience not found' }, { status: 404 })
   }
 
@@ -54,6 +61,7 @@ export const onRequestPatch: PagesFunction<Env, 'id'> = async ({ request, env, p
   const title = cleanTitle(body.title)
   const interviewDate = cleanOptionalDate(body.interviewDate)
   const content = cleanContent(body.content, 30000)
+  const visibility = cleanExperienceVisibility(body.visibility, previous.visibility)
   const links = cleanExperienceLinks(body.links)
 
   await env.DB.prepare(
@@ -61,10 +69,11 @@ export const onRequestPatch: PagesFunction<Env, 'id'> = async ({ request, env, p
      SET title = ?,
          interview_date = ?,
          content = ?,
+         visibility = ?,
          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
      WHERE id = ?`,
   )
-    .bind(title, interviewDate, content, id)
+    .bind(title, interviewDate, content, visibility, id)
     .run()
 
   await replaceExperienceLinks(env, id, links)

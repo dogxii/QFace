@@ -15,6 +15,7 @@ export interface ExperienceRow {
   interview_date: string
   content: string
   status: 'visible' | 'deleted' | 'hidden'
+  visibility: 'public' | 'private'
   created_at: string
   updated_at: string
   deleted_at: string | null
@@ -40,6 +41,46 @@ export function experienceCommentSourceId(id: string) {
   return `exp-${id}`
 }
 
+export function experienceIdFromCommentSourceId(sourceId: string) {
+  const match = /^exp-([0-9a-f-]{36})$/i.exec(sourceId)
+  return match?.[1] ?? null
+}
+
+export interface ExperienceAccessRow {
+  id: string
+  user_id: string
+  status: 'visible' | 'deleted' | 'hidden'
+  visibility: 'public' | 'private'
+}
+
+export function canViewExperience(row: ExperienceAccessRow | ExperienceRow, auth?: AuthContext) {
+  if (row.status !== 'visible') return false
+  if (row.visibility === 'public') return true
+  return Boolean(auth && (auth.user.id === row.user_id || canModerate(auth.user)))
+}
+
+export function canInteractWithExperience(row: ExperienceAccessRow | ExperienceRow) {
+  return row.status === 'visible' && row.visibility === 'public'
+}
+
+export async function getExperienceAccess(env: Env, id: string) {
+  return env.DB.prepare(
+    `SELECT id, user_id, status, visibility
+     FROM experiences
+     WHERE id = ?
+     LIMIT 1`,
+  )
+    .bind(id)
+    .first<ExperienceAccessRow>()
+}
+
+export async function getExperienceAccessByCommentSource(env: Env, sourceId: string) {
+  const id = experienceIdFromCommentSourceId(sourceId)
+  if (!id) return undefined
+
+  return getExperienceAccess(env, id)
+}
+
 export function experienceSelectSql(viewerUserId: string | null = null) {
   return `
     SELECT
@@ -48,6 +89,7 @@ export function experienceSelectSql(viewerUserId: string | null = null) {
       experiences.interview_date,
       experiences.content,
       experiences.status,
+      experiences.visibility,
       experiences.created_at,
       experiences.updated_at,
       experiences.deleted_at,
@@ -106,6 +148,7 @@ export function toExperience(
     interviewDate: row.interview_date,
     content: visible ? row.content : '',
     status: row.status,
+    visibility: row.visibility,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,

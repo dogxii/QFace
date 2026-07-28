@@ -9,12 +9,18 @@ import {
 } from '../../_lib/experiences'
 import { assertSameOrigin, json, readJson } from '../../_lib/http'
 import type { Env } from '../../_lib/types'
-import { cleanContent, cleanOptionalDate, cleanTitle } from '../../_lib/validators'
+import {
+  cleanContent,
+  cleanExperienceVisibility,
+  cleanOptionalDate,
+  cleanTitle,
+} from '../../_lib/validators'
 
 interface ExperienceBody {
   title?: string
   interviewDate?: string
   content?: string
+  visibility?: string
   links?: unknown
 }
 
@@ -37,6 +43,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   if (mineUserId) {
     filters.push('experiences.user_id = ?')
     bindings.push(mineUserId)
+  } else {
+    filters.push(`experiences.visibility = 'public'`)
   }
 
   if (keyword) {
@@ -74,13 +82,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const title = cleanTitle(body.title)
   const interviewDate = cleanOptionalDate(body.interviewDate)
   const content = cleanContent(body.content, 30000)
+  const visibility = cleanExperienceVisibility(body.visibility)
   const links = cleanExperienceLinks(body.links)
 
   await env.DB.prepare(
-    `INSERT INTO experiences (id, user_id, title, interview_date, content)
-     VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO experiences (id, user_id, title, interview_date, content, visibility)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   )
-    .bind(id, auth.user.id, title, interviewDate, content)
+    .bind(id, auth.user.id, title, interviewDate, content, visibility)
     .run()
 
   await replaceExperienceLinks(env, id, links)

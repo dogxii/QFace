@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import {
   ExperienceEditor,
   type ExperienceEditorValue,
+  type ExperienceSubmitAction,
   emptyExperienceEditorValue,
   toExperienceInput,
 } from '@/components/experience-editor'
@@ -26,7 +27,26 @@ function toEditorValue(experience: Experience): ExperienceEditorValue {
     title: experience.title,
     interviewDate: experience.interviewDate,
     content: experience.content,
+    visibility: experience.visibility,
   }
+}
+
+function valueWithAction(value: ExperienceEditorValue, action: ExperienceSubmitAction) {
+  return {
+    ...value,
+    visibility:
+      action === 'publish'
+        ? ('public' as const)
+        : action === 'private'
+          ? ('private' as const)
+          : value.visibility,
+  }
+}
+
+function experienceListTarget(experience: Experience) {
+  return experience.visibility === 'private'
+    ? ({ to: '/experiences', search: { mine: true } } as const)
+    : ({ to: '/experiences' } as const)
 }
 
 export function NewExperiencePage() {
@@ -35,7 +55,7 @@ export function NewExperiencePage() {
   const [value, setValue] = useState<ExperienceEditorValue>(
     () => readExperienceDraft(newExperienceDraftKey)?.value ?? emptyExperienceEditorValue,
   )
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<ExperienceSubmitAction | null>(null)
   const [error, setError] = useState('')
   const canWrite = Boolean(user || import.meta.env.DEV)
 
@@ -47,24 +67,24 @@ export function NewExperiencePage() {
     writeExperienceDraft(newExperienceDraftKey, value)
   }, [value])
 
-  const submit = async () => {
+  const submit = async (action: ExperienceSubmitAction) => {
     if (!canWrite) {
       window.location.href = githubLoginUrl()
       return
     }
 
-    setSaving(true)
+    setSaving(action)
     setError('')
     try {
-      const payload = await createExperience(toExperienceInput(value))
+      const payload = await createExperience(toExperienceInput(valueWithAction(value, action)))
       if (payload.experience) {
         clearExperienceDraft(newExperienceDraftKey)
-        navigate({ to: '/experiences' })
+        navigate(experienceListTarget(payload.experience))
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存失败')
     } finally {
-      setSaving(false)
+      setSaving(null)
     }
   }
 
@@ -83,13 +103,7 @@ export function NewExperiencePage() {
       ) : null}
       {error ? <div className="community-message">{error}</div> : null}
 
-      <ExperienceEditor
-        value={value}
-        onChange={setValue}
-        onSubmit={submit}
-        submitLabel="发布"
-        saving={saving}
-      />
+      <ExperienceEditor value={value} onChange={setValue} onSubmit={submit} saving={saving} />
     </main>
   )
 }
@@ -101,7 +115,7 @@ export function EditExperiencePage() {
   const [baseValue, setBaseValue] = useState<ExperienceEditorValue | null>(null)
   const [baseUpdatedAt, setBaseUpdatedAt] = useState('')
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<ExperienceSubmitAction | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -149,19 +163,22 @@ export function EditExperiencePage() {
     writeExperienceDraft(draftKey, value, { baseUpdatedAt })
   }, [baseUpdatedAt, baseValue, experienceId, loading, value])
 
-  const submit = async () => {
-    setSaving(true)
+  const submit = async (action: ExperienceSubmitAction) => {
+    setSaving(action)
     setError('')
     try {
-      const payload = await updateExperience(experienceId, toExperienceInput(value))
+      const payload = await updateExperience(
+        experienceId,
+        toExperienceInput(valueWithAction(value, action)),
+      )
       if (payload.experience) {
         clearExperienceDraft(editExperienceDraftKey(experienceId))
-        navigate({ to: '/experiences' })
+        navigate(experienceListTarget(payload.experience))
       }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '保存失败')
     } finally {
-      setSaving(false)
+      setSaving(null)
     }
   }
 
@@ -193,13 +210,7 @@ export function EditExperiencePage() {
         </div>
       </section>
       {error ? <div className="community-message">{error}</div> : null}
-      <ExperienceEditor
-        value={value}
-        onChange={setValue}
-        onSubmit={submit}
-        submitLabel="保存"
-        saving={saving}
-      />
+      <ExperienceEditor value={value} onChange={setValue} onSubmit={submit} saving={saving} />
     </main>
   )
 }

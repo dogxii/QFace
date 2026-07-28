@@ -1,7 +1,10 @@
+import type { ExperienceVisibility } from '@/types/experience'
+
 export interface ExperienceDraftValue {
   title: string
   interviewDate: string
   content: string
+  visibility: ExperienceVisibility
 }
 
 export interface ExperienceDraft {
@@ -25,6 +28,7 @@ function normalizeDraftValue(value: unknown): ExperienceDraftValue | undefined {
     title: typeof raw.title === 'string' ? raw.title : '',
     interviewDate: typeof raw.interviewDate === 'string' ? raw.interviewDate : '',
     content: typeof raw.content === 'string' ? raw.content : '',
+    visibility: raw.visibility === 'public' ? 'public' : 'private',
   }
 }
 
@@ -41,7 +45,8 @@ export function sameExperienceDraftValue(left: ExperienceDraftValue, right: Expe
   return (
     left.title === right.title &&
     left.interviewDate === right.interviewDate &&
-    left.content === right.content
+    left.content === right.content &&
+    left.visibility === right.visibility
   )
 }
 

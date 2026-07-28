@@ -64,6 +64,7 @@ function createDevExperience(input?: Partial<Experience>): Experience {
     interviewDate: '2026-07-16',
     content,
     status: 'visible',
+    visibility: 'public',
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
@@ -106,7 +107,13 @@ function readDevExperiences() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(devExperiencesKey) ?? '[]')
     if (!Array.isArray(parsed)) return []
-    return parsed as Experience[]
+    return parsed.map((experience) => {
+      const item = experience as Experience
+      return {
+        ...item,
+        visibility: item.visibility ?? 'public',
+      }
+    })
   } catch {
     return []
   }
@@ -168,6 +175,8 @@ function filterDevExperiences({ query = '', mine, sort = 'latest' }: ExperienceL
 
   if (mine) {
     experiences = experiences.filter((experience) => experience.canEdit)
+  } else {
+    experiences = experiences.filter((experience) => experience.visibility !== 'private')
   }
 
   if (keyword) {
@@ -206,6 +215,7 @@ function createLocalExperience(input: ExperienceInput) {
     title: input.title,
     interviewDate: input.interviewDate ?? '',
     content: input.content,
+    visibility: input.visibility ?? 'private',
     createdAt: timestamp,
     updatedAt: timestamp,
     linkCount: links.length,
@@ -285,6 +295,7 @@ export async function updateExperience(id: string, input: ExperienceInput) {
         ? {
             ...item,
             ...input,
+            visibility: input.visibility ?? item.visibility,
             linkCount: input.links?.length ?? item.linkCount,
             links:
               input.links?.map((link, index) => ({

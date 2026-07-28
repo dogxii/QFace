@@ -84,6 +84,7 @@ export function ExperiencePost({
   const [questionsLoading, setQuestionsLoading] = useState(false)
   const [repliesOpen, setRepliesOpen] = useState(false)
   const questionPanelOpen = activeExperienceId === experience.id
+  const isPublic = experience.visibility === 'public'
 
   useEffect(() => {
     if (experience.links.length) setQuestionLinks(experience.links)
@@ -136,6 +137,9 @@ export function ExperiencePost({
             </span>
           ) : null}
           <span className="comment-kind-label">#面经</span>
+          {experience.visibility === 'private' ? (
+            <span className="comment-kind-label experience-post__private-label">#私密</span>
+          ) : null}
         </div>
 
         <h2 className="experience-post__title">{experience.title}</h2>
@@ -143,7 +147,7 @@ export function ExperiencePost({
         <CollapsibleCommentContent content={experience.content} className="experience-content" />
 
         <div className="comment-actions experience-post__actions">
-          <ExperienceVoteButtons experience={experience} onVoted={onVoted} />
+          {isPublic ? <ExperienceVoteButtons experience={experience} onVoted={onVoted} /> : null}
 
           {experience.linkCount ? (
             <button
@@ -161,17 +165,19 @@ export function ExperiencePost({
             </button>
           ) : null}
 
-          <button
-            className="experience-post__action-link"
-            type="button"
-            onClick={() => setRepliesOpen((current) => !current)}
-            aria-expanded={repliesOpen}
-            aria-label={repliesOpen ? '收起回复' : '查看回复'}
-            title={repliesOpen ? '收起回复' : '查看回复'}
-          >
-            <MessageCircle size={14} aria-hidden="true" />
-            <span>{experience.replyCount}</span>
-          </button>
+          {isPublic ? (
+            <button
+              className="experience-post__action-link"
+              type="button"
+              onClick={() => setRepliesOpen((current) => !current)}
+              aria-expanded={repliesOpen}
+              aria-label={repliesOpen ? '收起回复' : '查看回复'}
+              title={repliesOpen ? '收起回复' : '查看回复'}
+            >
+              <MessageCircle size={14} aria-hidden="true" />
+              <span>{experience.replyCount}</span>
+            </button>
+          ) : null}
 
           {experience.canEdit ? (
             <>
@@ -198,7 +204,7 @@ export function ExperiencePost({
           ) : null}
         </div>
 
-        {repliesOpen ? (
+        {isPublic && repliesOpen ? (
           <div className="experience-post__inline">
             <ExperienceReplies experienceId={experience.id} onCountChange={updateReplyCount} />
           </div>

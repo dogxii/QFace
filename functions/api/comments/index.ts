@@ -1,5 +1,10 @@
 import { getAuth, requireAuth } from '../../_lib/auth'
 import { type CommentRow, commentSelectSql, toComment } from '../../_lib/comments'
+import {
+  canInteractWithExperience,
+  canViewExperience,
+  getExperienceAccessByCommentSource,
+} from '../../_lib/experiences'
 import { assertSameOrigin, json, readJson } from '../../_lib/http'
 import type { Env } from '../../_lib/types'
 import { cleanCommentKind, cleanContent, cleanParentId, cleanSourceId } from '../../_lib/validators'
@@ -17,6 +22,15 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const kind = url.searchParams.get('kind')
   const auth = await getAuth(request, env)
   const viewerUserId = auth?.user.id ?? null
+  const experience = await getExperienceAccessByCommentSource(env, sourceId)
+
+  if (experience && !canViewExperience(experience, auth)) {
+    return json({ error: 'Experience not found' }, { status: 404 })
+  }
+  if (sourceId.startsWith('exp-') && !experience) {
+    return json({ error: 'Experience not found' }, { status: 404 })
+  }
+
   const filters = [`comments.source_id = ?`]
   const bindings: unknown[] = viewerUserId ? [viewerUserId, sourceId] : [sourceId]
 
@@ -52,6 +66,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   const parentId = cleanParentId(body.parentId)
   const kind = parentId ? 'discussion' : cleanCommentKind(body.kind)
   const content = cleanContent(body.content)
+  const experience = await getExperienceAccessByCommentSource(env, sourceId)
+
+  if (sourceId.startsWith('exp-') && (!experience || !canInteractWithExperience(experience))) {
+    return json({ error: 'Experience not found' }, { status: 404 })
+  }
 
   if (parentId) {
     const parent = await env.DB.prepare(

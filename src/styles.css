@@ -2852,6 +2852,10 @@ select::-ms-expand {
   color: var(--heading);
 }
 
+.experience-post__private-label {
+  color: var(--muted);
+}
+
 .experience-post__inline {
   margin-top: 12px;
 }
@@ -3200,13 +3204,31 @@ select::-ms-expand {
 
 .experience-editor__footer {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.experience-editor__visibility {
+  margin-right: auto;
+  color: var(--heading);
+  font-size: 12px;
+  font-weight: 620;
 }
 
 .experience-editor__footer button {
   color: var(--solid-text);
   background: var(--solid-bg);
+}
+
+.experience-editor__footer .experience-editor__secondary-action {
+  color: var(--heading);
+  background: transparent;
+}
+
+.experience-editor__footer .experience-editor__secondary-action:hover {
+  color: var(--ink);
+  background: var(--surface-2);
 }
 
 .experience-editor__footer button:disabled {

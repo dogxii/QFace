@@ -1,5 +1,9 @@
 import { requireAuth } from '../../../_lib/auth'
 import { type CommentRow, commentSelectSql, getComment, toComment } from '../../../_lib/comments'
+import {
+  canInteractWithExperience,
+  getExperienceAccessByCommentSource,
+} from '../../../_lib/experiences'
 import { assertSameOrigin, json, readJson } from '../../../_lib/http'
 import type { Env } from '../../../_lib/types'
 import { cleanVote } from '../../../_lib/validators'
@@ -19,6 +23,14 @@ export const onRequestPost: PagesFunction<Env, 'id'> = async ({ request, env, pa
   const comment = await getComment(env, id)
 
   if (comment?.status !== 'visible') {
+    return json({ error: 'Comment not found' }, { status: 404 })
+  }
+
+  const experience = await getExperienceAccessByCommentSource(env, comment.source_id)
+  if (
+    comment.source_id.startsWith('exp-') &&
+    (!experience || !canInteractWithExperience(experience))
+  ) {
     return json({ error: 'Comment not found' }, { status: 404 })
   }
 

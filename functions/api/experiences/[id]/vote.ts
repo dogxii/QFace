@@ -1,5 +1,10 @@
 import { requireAuth } from '../../../_lib/auth'
-import { getExperience, getExperienceLinks, toExperience } from '../../../_lib/experiences'
+import {
+  canInteractWithExperience,
+  getExperience,
+  getExperienceLinks,
+  toExperience,
+} from '../../../_lib/experiences'
 import { assertSameOrigin, json, readJson } from '../../../_lib/http'
 import type { Env } from '../../../_lib/types'
 import { cleanVote } from '../../../_lib/validators'
@@ -18,7 +23,7 @@ export const onRequestPost: PagesFunction<Env, 'id'> = async ({ request, env, pa
   const id = getId(params)
   const experience = await getExperience(env, id, auth.user.id)
 
-  if (experience?.status !== 'visible') {
+  if (!experience || !canInteractWithExperience(experience)) {
     return json({ error: 'Experience not found' }, { status: 404 })
   }
 

@@ -1,10 +1,12 @@
 export type CommentKind = 'answer' | 'explain' | 'question' | 'discussion'
 export type PublicCommentKind = 'answer' | 'explain'
 export type NoteSaveAction = 'draft' | 'publish' | 'unpublish'
+export type ExperienceVisibility = 'public' | 'private'
 
 const commentKinds = new Set<CommentKind>(['answer', 'explain', 'question', 'discussion'])
 const publicCommentKinds = new Set<PublicCommentKind>(['answer', 'explain'])
 const noteSaveActions = new Set<NoteSaveAction>(['draft', 'publish', 'unpublish'])
+const experienceVisibilities = new Set<ExperienceVisibility>(['public', 'private'])
 
 export function cleanSourceId(value: unknown) {
   const sourceId = typeof value === 'string' ? value.trim() : ''
@@ -151,6 +153,20 @@ export function cleanNoteSaveAction(value: unknown): NoteSaveAction {
   if (noteSaveActions.has(value as NoteSaveAction)) return value as NoteSaveAction
 
   throw new Response(JSON.stringify({ error: 'Invalid note action' }), {
+    status: 400,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  })
+}
+
+export function cleanExperienceVisibility(
+  value: unknown,
+  fallback: ExperienceVisibility = 'private',
+) {
+  if (value === undefined || value === null || value === '') return fallback
+  if (experienceVisibilities.has(value as ExperienceVisibility))
+    return value as ExperienceVisibility
+
+  throw new Response(JSON.stringify({ error: 'Invalid experience visibility' }), {
     status: 400,
     headers: { 'content-type': 'application/json; charset=utf-8' },
   })

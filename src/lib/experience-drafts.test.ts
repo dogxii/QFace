@@ -10,18 +10,34 @@ const serverValue: ExperienceDraftValue = {
   title: '原面经',
   interviewDate: '2026-07-23',
   content: '原内容',
+  visibility: 'public',
 }
 
 const draftValue: ExperienceDraftValue = {
   title: '原面经',
   interviewDate: '2026-07-23',
   content: '本地未发布内容',
+  visibility: 'private',
 }
 
 describe('experience drafts', () => {
   it('detects meaningful draft content', () => {
-    expect(hasExperienceDraftContent({ title: '', interviewDate: '', content: '' })).toBe(false)
-    expect(hasExperienceDraftContent({ title: '', interviewDate: '', content: '草稿' })).toBe(true)
+    expect(
+      hasExperienceDraftContent({
+        title: '',
+        interviewDate: '',
+        content: '',
+        visibility: 'private',
+      }),
+    ).toBe(false)
+    expect(
+      hasExperienceDraftContent({
+        title: '',
+        interviewDate: '',
+        content: '草稿',
+        visibility: 'private',
+      }),
+    ).toBe(true)
   })
 
   it('compares draft values exactly', () => {

@@ -1,6 +1,7 @@
 import type { CommunityUser } from '@/types/community'
 
 export type ExperienceSort = 'latest' | 'hot'
+export type ExperienceVisibility = 'public' | 'private'
 
 export interface ExperienceQuestionLink {
   id: string
@@ -15,6 +16,7 @@ export interface Experience {
   interviewDate: string
   content: string
   status: 'visible' | 'deleted' | 'hidden'
+  visibility: ExperienceVisibility
   createdAt: string
   updatedAt: string
   deletedAt: string | null
@@ -33,6 +35,7 @@ export interface ExperienceInput {
   title: string
   interviewDate?: string
   content: string
+  visibility?: ExperienceVisibility
   links?: Array<{
     sourceId: string
     label?: string

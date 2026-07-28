@@ -11,7 +11,7 @@ import {
 } from '@/lib/experience-links'
 import { copyMarkdownText, exportMarkdownImage, safeExportFilename } from '@/lib/export-image'
 import { useSession } from '@/lib/session'
-import type { ExperienceInput } from '@/types/experience'
+import type { ExperienceInput, ExperienceVisibility } from '@/types/experience'
 import { categories, type Question, type QuestionCategory } from '@/types/question'
 
 const MarkdownEditor = lazy(() => import('./markdown-editor'))
@@ -23,12 +23,14 @@ export interface ExperienceEditorValue {
   title: string
   interviewDate: string
   content: string
+  visibility: ExperienceVisibility
 }
 
 export const emptyExperienceEditorValue: ExperienceEditorValue = {
   title: '',
   interviewDate: '',
   content: '',
+  visibility: 'private',
 }
 
 function readQuestionCategoryFilter(): QuestionCategoryFilter {
@@ -55,22 +57,23 @@ export function toExperienceInput(value: ExperienceEditorValue): ExperienceInput
     title: value.title.trim(),
     interviewDate: value.interviewDate.trim(),
     content: value.content.trim(),
+    visibility: value.visibility,
     links: extractExperienceLinks(value.content),
   }
 }
 
+export type ExperienceSubmitAction = 'save' | 'publish' | 'private'
+
 export function ExperienceEditor({
   value,
-  submitLabel,
   saving,
   onChange,
   onSubmit,
 }: {
   value: ExperienceEditorValue
-  submitLabel: string
-  saving?: boolean
+  saving?: ExperienceSubmitAction | null
   onChange: (value: ExperienceEditorValue) => void
-  onSubmit: () => void | Promise<void>
+  onSubmit: (action: ExperienceSubmitAction) => void | Promise<void>
 }) {
   const { user } = useSession()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -92,9 +95,14 @@ export function ExperienceEditor({
     [questionCategory, questionQuery],
   )
 
-  const updateField = (field: keyof ExperienceEditorValue, next: string) => {
+  const updateField = <K extends keyof ExperienceEditorValue>(
+    field: K,
+    next: ExperienceEditorValue[K],
+  ) => {
     onChange({ ...value, [field]: next })
   }
+  const canSubmit = value.title.trim().length >= 2 && value.content.trim().length >= 2
+  const visibilityText = value.visibility === 'public' ? '公开可见' : '仅自己可见'
 
   const openQuestionTool = () => {
     const editorSelection = codeEditorRef.current?.view?.state.selection.main
@@ -371,14 +379,40 @@ export function ExperienceEditor({
       </div>
 
       <div className="experience-editor__footer">
-        <Link to="/experiences">取消</Link>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={saving || value.title.trim().length < 2 || value.content.trim().length < 2}
+        <span className="experience-editor__visibility">{visibilityText}</span>
+        <Link
+          to="/experiences"
+          search={value.visibility === 'private' ? { mine: true } : undefined}
         >
-          {saving ? '保存中' : submitLabel}
+          取消
+        </Link>
+        {value.visibility === 'public' ? (
+          <button
+            className="experience-editor__secondary-action"
+            type="button"
+            onClick={() => onSubmit('private')}
+            disabled={Boolean(saving) || !canSubmit}
+          >
+            {saving === 'private' ? '保存中' : '设为私密'}
+          </button>
+        ) : null}
+        <button
+          className="experience-editor__secondary-action"
+          type="button"
+          onClick={() => onSubmit('save')}
+          disabled={Boolean(saving) || !canSubmit}
+        >
+          {saving === 'save' ? '保存中' : '保存'}
         </button>
+        {value.visibility !== 'public' ? (
+          <button
+            type="button"
+            onClick={() => onSubmit('publish')}
+            disabled={Boolean(saving) || !canSubmit}
+          >
+            {saving === 'publish' ? '发布中' : '公开发布'}
+          </button>
+        ) : null}
       </div>
     </div>
   )
