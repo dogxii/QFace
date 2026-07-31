@@ -1245,12 +1245,14 @@ export function CommentAuthor({ user }: { user: CommunityComment['user'] }) {
 export function CollapsibleCommentContent({
   content,
   className,
+  defaultCollapsed = false,
 }: {
   content: string
   className?: string
+  defaultCollapsed?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
-  const shouldCollapse = content.trim().length > commentCollapseThreshold
+  const shouldCollapse = defaultCollapsed || content.trim().length > commentCollapseThreshold
 
   return (
     <>

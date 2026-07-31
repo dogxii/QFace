@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import type { ReactCodeMirrorRef } from '@uiw/react-codemirror'
-import { Copy, ExternalLink, ImageDown, Info, Search } from 'lucide-react'
+import { Copy, ExternalLink, ImageDown, Info, Moon, Search, Sun } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import {
   appendQuestionLink,
@@ -17,7 +17,9 @@ import { categories, type Question, type QuestionCategory } from '@/types/questi
 const MarkdownEditor = lazy(() => import('./markdown-editor'))
 const MarkdownContent = lazy(() => import('./markdown-content'))
 const questionCategoryStorageKey = 'qface:experience-question-category:v1'
+const editorToneStorageKey = 'qface:experience-editor-tone:v1'
 type QuestionCategoryFilter = QuestionCategory | 'all'
+type ExperienceEditorTone = 'dark' | 'light'
 
 export interface ExperienceEditorValue {
   title: string
@@ -52,6 +54,24 @@ function toQuestionSearchCategory(value: QuestionCategoryFilter) {
   return value === 'all' ? undefined : value
 }
 
+function readEditorTone(): ExperienceEditorTone {
+  if (typeof window === 'undefined') return 'dark'
+
+  try {
+    return window.localStorage.getItem(editorToneStorageKey) === 'light' ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+function writeEditorTone(tone: ExperienceEditorTone) {
+  try {
+    window.localStorage.setItem(editorToneStorageKey, tone)
+  } catch {
+    // 忽略隐私模式或存储不可用场景，编辑区亮暗偏好只是本地体验。
+  }
+}
+
 export function toExperienceInput(value: ExperienceEditorValue): ExperienceInput {
   return {
     title: value.title.trim(),
@@ -82,6 +102,7 @@ export function ExperienceEditor({
   const [questionQuery, setQuestionQuery] = useState('')
   const [questionToolOpen, setQuestionToolOpen] = useState(false)
   const [mode, setMode] = useState<'edit' | 'preview'>('edit')
+  const [editorTone, setEditorTone] = useState<ExperienceEditorTone>(() => readEditorTone())
   const [pendingCursor, setPendingCursor] = useState<number | null>(null)
   const [toolMessage, setToolMessage] = useState('')
   const [questionCategory, setQuestionCategory] = useState<QuestionCategoryFilter>(
@@ -103,6 +124,11 @@ export function ExperienceEditor({
   }
   const canSubmit = value.title.trim().length >= 2 && value.content.trim().length >= 2
   const visibilityText = value.visibility === 'public' ? '公开可见' : '仅自己可见'
+  const toggleEditorTone = () => {
+    const nextTone = editorTone === 'dark' ? 'light' : 'dark'
+    setEditorTone(nextTone)
+    writeEditorTone(nextTone)
+  }
 
   const openQuestionTool = () => {
     const editorSelection = codeEditorRef.current?.view?.state.selection.main
@@ -257,6 +283,19 @@ export function ExperienceEditor({
         </button>
         <button
           type="button"
+          className="answer-editor__toolbar-action"
+          onClick={toggleEditorTone}
+          aria-label={editorTone === 'dark' ? '切换亮色编辑区' : '切换深色编辑区'}
+          title={editorTone === 'dark' ? '亮色编辑区' : '深色编辑区'}
+        >
+          {editorTone === 'dark' ? (
+            <Sun size={14} aria-hidden="true" />
+          ) : (
+            <Moon size={14} aria-hidden="true" />
+          )}
+        </button>
+        <button
+          type="button"
           className="markdown-hint"
           data-tooltip="Markdown 渲染：普通换行不分段，空一行分段"
           aria-label="Markdown 渲染：普通换行不分段，空一行分段"
@@ -368,6 +407,7 @@ export function ExperienceEditor({
             onChange={(next) => updateField('content', next)}
             placeholder="粘贴或编写面经，每一行问题后可以插入 [↗] 跳回题库"
             editorRef={codeEditorRef}
+            tone={editorTone}
           />
         </Suspense>
       )}

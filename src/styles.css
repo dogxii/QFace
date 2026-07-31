@@ -2852,8 +2852,13 @@ select::-ms-expand {
   color: var(--heading);
 }
 
-.experience-post__private-label {
+.experience-post__private-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .experience-post__inline {

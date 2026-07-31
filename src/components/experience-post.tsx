@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowDown, ArrowUp, CircleHelp, Edit3, MessageCircle, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, CircleHelp, Edit3, Lock, MessageCircle, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
   CollapsibleCommentContent,
@@ -136,15 +136,22 @@ export function ExperiencePost({
               面试 {formatInterviewDate(experience.interviewDate)}
             </span>
           ) : null}
-          <span className="comment-kind-label">#面经</span>
           {experience.visibility === 'private' ? (
-            <span className="comment-kind-label experience-post__private-label">#私密</span>
+            <span className="experience-post__private-state">
+              <Lock size={12} aria-hidden="true" />
+              私密
+            </span>
           ) : null}
+          <span className="comment-kind-label">#面经</span>
         </div>
 
         <h2 className="experience-post__title">{experience.title}</h2>
 
-        <CollapsibleCommentContent content={experience.content} className="experience-content" />
+        <CollapsibleCommentContent
+          content={experience.content}
+          className="experience-content"
+          defaultCollapsed={!isPublic}
+        />
 
         <div className="comment-actions experience-post__actions">
           {isPublic ? <ExperienceVoteButtons experience={experience} onVoted={onVoted} /> : null}
